@@ -90,6 +90,26 @@ function runMigrations(pool: sql.ConnectionPool): Promise<void> {
             value      NVARCHAR(MAX) NULL,
             updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
           );
+
+        -- clients.email was UNIQUE, which in SQL Server allows only ONE client
+        -- without an email. Replace it with "unique when filled in".
+        -- (TRY/CATCH: parallel processes, e.g. build workers, may race on this)
+        BEGIN TRY
+          DECLARE @uq SYSNAME;
+          SELECT TOP 1 @uq = kc.name
+            FROM sys.key_constraints kc
+            JOIN sys.index_columns ic ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+            JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+           WHERE kc.parent_object_id = OBJECT_ID('clients') AND kc.type = 'UQ' AND c.name = 'email';
+          IF @uq IS NOT NULL
+            EXEC('ALTER TABLE clients DROP CONSTRAINT [' + @uq + ']');
+          IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_clients_email' AND object_id = OBJECT_ID('clients'))
+            EXEC('CREATE UNIQUE INDEX ux_clients_email ON clients(email) WHERE email IS NOT NULL');
+        END TRY
+        BEGIN CATCH
+          -- 1913 index exists, 3728/3727 constraint already dropped: another process won the race
+          IF ERROR_NUMBER() NOT IN (1913, 3727, 3728) THROW;
+        END CATCH
       `);
       await importMemoryDataOnce(pool);
     })().catch((err: any) => {
@@ -360,7 +380,12 @@ export async function createClient(data: Partial<Client>): Promise<Client> {
       );
       const rows = await query<Client>("SELECT * FROM clients WHERE id = @id", { id: newClient.id });
       return rows[0];
-    } catch (err) { console.warn("[DB] SQL Server insert client failed, fallback to memory", err); }
+    } catch (err) {
+      // Don't fall back to memory here: the client would vanish on restart and
+      // its deployments could not be saved (foreign key). Surface the error.
+      console.warn("[DB] SQL Server insert client failed", err);
+      throw err;
+    }
   }
 
   globalStore._db_clients = [newClient, ...(globalStore._db_clients || [])];
