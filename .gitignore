@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# secrets — never commit (DATABASE_URL, AUTH_SECRET, ENCRYPTION_SECRET)
+.env
+.env.*
+!.env.example
+
+# backups exported from the app may contain encrypted vault data
+*backup*.json
+
+# logs / OS / editor
+npm-debug.log*
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

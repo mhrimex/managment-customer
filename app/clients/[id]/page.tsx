@@ -1,0 +1,723 @@
+"use client";
+
+import React, { useState, useEffect, use } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Building2,
+  Phone,
+  Mail,
+  MapPin,
+  Layers,
+  Server as ServerIcon,
+  Key,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  PlusCircle,
+  ArrowLeft,
+  MessageSquare,
+  Edit3,
+  Trash2,
+  ShieldCheck,
+  Plus,
+  FileText,
+  AlertTriangle,
+  Clock,
+  Copy,
+  Check,
+} from "lucide-react";
+import { Client, ClientDeployment, DeploymentCredential } from "@/types";
+import { useApp } from "@/components/AppLayoutClient";
+import StatusBadge, { EnvironmentBadge } from "@/components/StatusBadge";
+import RenewalBadge from "@/components/RenewalBadge";
+import CopyButton from "@/components/CopyButton";
+import CompanyAvatar from "@/components/CompanyAvatar";
+import { useFeedback } from "@/components/Feedback";
+import { Skeleton, SkeletonCards } from "@/components/Skeleton";
+import { formatDate } from "@/lib/utils";
+
+export default function ClientDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { openEditClient, openNewDeployment, openEditDeployment, refreshTrigger, triggerRefresh } = useApp();
+  const { toast, confirm } = useFeedback();
+
+  const [client, setClient] = useState<Client | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showSecret, setShowSecret] = useState<Record<string, boolean>>({});
+
+  // Credential Modal State
+  const [isAddCredOpen, setIsAddCredOpen] = useState(false);
+  const [selectedDeploymentId, setSelectedDeploymentId] = useState("");
+  const [credKey, setCredKey] = useState("");
+  const [credValue, setCredValue] = useState("");
+  const [credLoading, setCredLoading] = useState(false);
+
+  const fetchClient = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/clients/${id}`);
+      const data = await res.json();
+      if (data.success) {
+        setClient(data.data);
+      } else {
+        setClient(null);
+      }
+    } catch (err) {
+      console.error("Error loading client:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClient();
+  }, [id, refreshTrigger]);
+
+  // Secret values are never in the client payload; fetch one on demand (server logs the read).
+  const [secretValues, setSecretValues] = useState<Record<string, string>>({});
+  const [copiedCred, setCopiedCred] = useState<string | null>(null);
+
+  const fetchSecret = async (credId: string, purpose: "reveal" | "copy"): Promise<string | null> => {
+    try {
+      const res = await fetch(`/api/credentials?id=${encodeURIComponent(credId)}&purpose=${purpose}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Could not read credential");
+      return data.data.key_value as string;
+    } catch (err: any) {
+      toast(err.message || "Could not read credential", "error");
+      return null;
+    }
+  };
+
+  const toggleShowSecret = async (credId: string) => {
+    if (showSecret[credId]) {
+      setShowSecret((prev) => ({ ...prev, [credId]: false }));
+      setSecretValues((prev) => {
+        const { [credId]: _removed, ...rest } = prev;
+        return rest;
+      });
+      return;
+    }
+    const value = await fetchSecret(credId, "reveal");
+    if (value === null) return;
+    setSecretValues((prev) => ({ ...prev, [credId]: value }));
+    setShowSecret((prev) => ({ ...prev, [credId]: true }));
+  };
+
+  const copySecret = async (credId: string) => {
+    const value = secretValues[credId] ?? (await fetchSecret(credId, "copy"));
+    if (value === null) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = value;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopiedCred(credId);
+    setTimeout(() => setCopiedCred((c) => (c === credId ? null : c)), 2000);
+  };
+
+
+  // Delete Deployment
+  const handleDeleteDeployment = async (depId: string, solutionName?: string) => {
+    const ok = await confirm({
+      title: `Delete ${solutionName || "this"} deployment?`,
+      message: "The deployment and its vault credentials will be removed permanently.",
+      confirmLabel: "Delete deployment",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/deployments/${depId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        toast("Deployment deleted.");
+        triggerRefresh();
+        fetchClient();
+      } else {
+        toast(data.error || "Failed to delete deployment", "error");
+      }
+    } catch (err) {
+      toast("Failed to delete deployment", "error");
+    }
+  };
+
+  // Add Credential to Vault
+  const handleAddCredential = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDeploymentId || !credKey.trim() || !credValue.trim()) return;
+
+    setCredLoading(true);
+    try {
+      const res = await fetch("/api/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deployment_id: selectedDeploymentId,
+          key_label: credKey.trim(),
+          key_value: credValue.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsAddCredOpen(false);
+        setCredKey("");
+        setCredValue("");
+        toast("Credential stored in the vault.");
+        fetchClient();
+      } else {
+        toast(data.error || "Failed to add credential", "error");
+      }
+    } catch {
+      toast("Error adding credential", "error");
+    } finally {
+      setCredLoading(false);
+    }
+  };
+
+  // Delete Credential
+  const handleDeleteCredential = async (credId: string) => {
+    const ok = await confirm({
+      title: "Remove this credential?",
+      message: "The secret will be deleted from the vault permanently.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/credentials?id=${credId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        toast("Credential removed.");
+        fetchClient();
+      } else {
+        toast(data.error || "Failed to remove credential", "error");
+      }
+    } catch {
+      toast("Error removing credential", "error");
+    }
+  };
+
+  if (loading && !client) {
+    return (
+      <div className="space-y-8" role="status" aria-label="Loading client">
+        <div className="flex items-center gap-5 pb-6 border-b border-slate-800">
+          <Skeleton className="w-20 h-20 rounded-2xl" />
+          <div className="space-y-3 flex-1">
+            <Skeleton className="h-9 w-72 max-w-full" />
+            <Skeleton className="h-5 w-96 max-w-full" />
+          </div>
+        </div>
+        <SkeletonCards count={3} />
+      </div>
+    );
+  }
+
+  if (!client) {
+    return (
+      <div className="py-16 text-center space-y-4">
+        <h2 className="text-xl font-bold text-white">Client Not Found</h2>
+        <p className="text-xs text-slate-400">The client record does not exist or may have been deleted.</p>
+        <Link
+          href="/clients"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-slate-200 text-xs hover:bg-slate-700"
+        >
+          <ArrowLeft size={17} /> Back to Clients Directory
+        </Link>
+      </div>
+    );
+  }
+
+  // Format WhatsApp Link
+  const cleanPhone = (phone?: string | null) => {
+    if (!phone) return "";
+    return phone.replace(/[^0-9]/g, "");
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Back Button & Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div>
+          <Link
+            href="/clients"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-white transition-colors mb-4"
+          >
+            <ArrowLeft size={17} /> Back to All Clients
+          </Link>
+          <div className="flex items-center gap-5">
+            <CompanyAvatar name={client.company_name} logoUrl={client.logo_url} size="xl" />
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                  {client.company_name}
+                </h1>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  Active Client
+                </span>
+              </div>
+              <p className="text-base text-slate-400 mt-1.5">
+                Registered on {formatDate(client.created_at)} • {client.deployments?.length || 0} deployed solutions
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => openEditClient(client)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+          >
+            <Edit3 size={14} />
+            <span>Edit Profile</span>
+          </button>
+
+          <button
+            onClick={() => openNewDeployment(client.id)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all"
+          >
+            <PlusCircle size={15} />
+            <span>Deploy New Solution</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Client Quick Contact & SLA Info Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Contact details */}
+        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 glass-panel space-y-4">
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <Building2 size={14} className="text-emerald-400" />
+            Contact Information
+          </h2>
+
+          <div className="space-y-3 text-xs">
+            <div>
+              <span className="text-slate-400 text-[11px] block">Contact Person:</span>
+              <span className="text-slate-100 font-medium text-sm">
+                {client.contact_person || "Not designated"}
+              </span>
+            </div>
+
+            <div>
+              <span className="text-slate-400 text-[11px] block">Official Email:</span>
+              {client.email ? (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <a
+                    href={`mailto:${client.email}`}
+                    className="text-indigo-400 hover:underline flex items-center gap-1 font-mono"
+                  >
+                    <Mail size={12} />
+                    {client.email}
+                  </a>
+                  <CopyButton text={client.email} />
+                </div>
+              ) : (
+                <span className="text-slate-500 italic">No email</span>
+              )}
+            </div>
+
+            {/* Primary Phone with Call and WhatsApp actions */}
+            <div>
+              <span className="text-slate-400 text-[11px] block">Primary Phone:</span>
+              {client.phone_primary ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="font-mono text-slate-200 font-medium">
+                    {client.phone_primary}
+                  </span>
+                  <CopyButton text={client.phone_primary} />
+
+                  {/* WhatsApp Quick Action */}
+                  <a
+                    href={`https://wa.me/${cleanPhone(client.phone_primary)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1 px-2 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                    title="Open in WhatsApp"
+                  >
+                    <MessageSquare size={12} />
+                    <span>WhatsApp</span>
+                  </a>
+
+                  {/* Tel Quick Action */}
+                  <a
+                    href={`tel:${client.phone_primary}`}
+                    className="p-1 px-2 rounded bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                    title="Call"
+                  >
+                    <Phone size={12} />
+                    <span>Call</span>
+                  </a>
+                </div>
+              ) : (
+                <span className="text-slate-500 italic">No phone</span>
+              )}
+            </div>
+
+            {client.phone_secondary && (
+              <div>
+                <span className="text-slate-400 text-[11px] block">Secondary Phone:</span>
+                <div className="flex items-center gap-2 mt-0.5 font-mono text-slate-300">
+                  <span>{client.phone_secondary}</span>
+                  <CopyButton text={client.phone_secondary} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Physical Address & Location */}
+        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 glass-panel space-y-4">
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <MapPin size={14} className="text-sky-400" />
+            Office & Billing Address
+          </h2>
+          <div className="text-xs text-slate-300">
+            {client.address ? (
+              <p className="leading-relaxed whitespace-pre-line">{client.address}</p>
+            ) : (
+              <p className="text-slate-500 italic">No address provided</p>
+            )}
+          </div>
+          <div className="pt-3 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
+            <div className="flex justify-between">
+              <span>Account Status:</span>
+              <span className="text-emerald-400 font-medium">In Good Standing</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Last Profile Update:</span>
+              <span className="font-mono text-slate-300">{formatDate(client.updated_at)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* SLA Notes & Account Context */}
+        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 glass-panel space-y-4">
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <FileText size={14} className="text-amber-400" />
+            Support Agreement & Notes
+          </h2>
+          <div className="text-xs text-slate-300">
+            {client.notes ? (
+              <p className="leading-relaxed bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+                {client.notes}
+              </p>
+            ) : (
+              <p className="text-slate-500 italic">No notes recorded for this client.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Solutions Deployed for This Client */}
+      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 glass-panel space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+          <div>
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Layers size={18} className="text-indigo-400" />
+              Active Solutions Deployed ({client.deployments?.length || 0})
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Live software stacks, server connections, domains, and renewals for {client.company_name}
+            </p>
+          </div>
+
+          <button
+            onClick={() => openNewDeployment(client.id)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-colors self-start sm:self-auto"
+          >
+            <Plus size={14} />
+            <span>Add Solution</span>
+          </button>
+        </div>
+
+        {client.deployments && client.deployments.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4">
+            {client.deployments.map((dep) => (
+              <div
+                key={dep.id}
+                className="p-5 rounded-xl bg-slate-950/70 border border-slate-800 hover:border-slate-700/80 transition-all space-y-4"
+              >
+                {/* Header row: Solution Name, Environment, Status */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-600/20">
+                      <Layers size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        {dep.solution?.name}
+                        <EnvironmentBadge env={dep.environment} />
+                      </h3>
+                      <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                        <span className="text-indigo-400 font-mono">{dep.solution?.category}</span>
+                        <span>•</span>
+                        <span className="font-mono">{dep.version_installed || "v1.0.0"}</span>
+                        <span>•</span>
+                        <span>License: {dep.license_type}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <StatusBadge status={dep.deployment_status} />
+                    <RenewalBadge date={dep.renewal_date} status={dep.deployment_status} />
+                    <button
+                      onClick={() => openEditDeployment(dep)}
+                      className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors ml-2"
+                      title="Edit Deployment"
+                    >
+                      <Edit3 size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDeployment(dep.id, dep.solution?.name)}
+                      className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors"
+                      title="Delete Deployment"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Technical Footprint Grid: Domain, Server, Database, SLA */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-900 border border-slate-800/80 text-xs">
+                  {/* Instance Domain */}
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">Instance Domain / URL</span>
+                    {dep.instance_url ? (
+                      <div className="flex items-center gap-1.5 font-mono font-medium text-slate-200">
+                        <a
+                          href={`https://${dep.instance_url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:underline flex items-center gap-1 text-indigo-300"
+                        >
+                          <span className="truncate max-w-[150px]">{dep.instance_url}</span>
+                          <ExternalLink size={11} />
+                        </a>
+                        <CopyButton text={dep.instance_url} />
+                      </div>
+                    ) : (
+                      <span className="text-slate-500 italic">No domain mapped</span>
+                    )}
+                  </div>
+
+                  {/* Server Details */}
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">Hosting Server</span>
+                    {dep.server ? (
+                      <div>
+                        <div className="text-slate-200 font-medium flex items-center gap-1">
+                          <ServerIcon size={12} className="text-sky-400" />
+                          <span>{dep.server.server_name}</span>
+                        </div>
+                        <div className="flex items-center gap-1 font-mono text-[11px] text-slate-400 mt-0.5">
+                          <span>{dep.server.ip_address}</span>
+                          <CopyButton text={dep.server.ip_address} />
+                          <span className="text-slate-500">({dep.server.provider})</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-slate-500 italic">External SaaS / Cloud</span>
+                    )}
+                  </div>
+
+                  {/* Database Name */}
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">Database Schema</span>
+                    {dep.database_name ? (
+                      <div className="flex items-center gap-1 font-mono text-slate-200">
+                        <span>{dep.database_name}</span>
+                        <CopyButton text={dep.database_name} />
+                      </div>
+                    ) : (
+                      <span className="text-slate-500 italic">Default</span>
+                    )}
+                  </div>
+
+                  {/* Support Contract */}
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">Support SLA</span>
+                    <div className="flex items-center gap-1.5 font-medium text-slate-200">
+                      <ShieldCheck size={14} className="text-emerald-400" />
+                      <span>{dep.support_contract_status}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Deployment Notes if present */}
+                {dep.notes && (
+                  <div className="text-xs text-slate-400 bg-slate-900/50 p-3 rounded-lg border border-slate-800/60">
+                    <span className="text-slate-300 font-medium">Ops Notes: </span>
+                    {dep.notes}
+                  </div>
+                )}
+
+                {/* Credentials Vault for this deployment */}
+                <div className="pt-2 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                      <Key size={13} className="text-amber-400" />
+                      Encrypted Credentials Vault
+                    </span>
+                    <button
+                      onClick={() => {
+                        setSelectedDeploymentId(dep.id);
+                        setIsAddCredOpen(true);
+                      }}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
+                    >
+                      <Plus size={12} /> Add Key
+                    </button>
+                  </div>
+
+                  {dep.credentials && dep.credentials.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {dep.credentials.map((cred) => {
+                        const isVisible = showSecret[cred.id];
+                        return (
+                          <div
+                            key={cred.id}
+                            className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-xs"
+                          >
+                            <div className="min-w-0 pr-2">
+                              <div className="text-[11px] text-slate-400 truncate">{cred.key_label}</div>
+                              <div className="font-mono text-slate-200 mt-0.5 truncate">
+                                {isVisible ? secretValues[cred.id] : "••••••••••••••••"}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => toggleShowSecret(cred.id)}
+                                className="p-1 text-slate-400 hover:text-white rounded"
+                                title={isVisible ? "Hide" : "Reveal"}
+                              >
+                                {isVisible ? <EyeOff size={13} /> : <Eye size={13} />}
+                              </button>
+                              <button
+                                onClick={() => copySecret(cred.id)}
+                                className="p-1 text-slate-400 hover:text-white rounded"
+                                title="Copy secret"
+                                aria-label={`Copy ${cred.key_label}`}
+                              >
+                                {copiedCred === cred.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCredential(cred.id)}
+                                className="p-1 text-slate-400 hover:text-rose-400 rounded"
+                                title="Delete Key"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-slate-500 italic py-1">
+                      No credentials stored in vault for this deployment.
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-xs text-slate-400 space-y-2">
+            <Layers size={28} className="mx-auto text-slate-500 mb-2" />
+            <p className="text-slate-300 font-medium">No active solutions deployed yet</p>
+            <p className="text-slate-500">Deploy ERP, POS, or Mobile Apps to connect this client.</p>
+            <button
+              onClick={() => openNewDeployment(client.id)}
+              className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
+            >
+              <PlusCircle size={14} /> Deploy Solution
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Add Credential Modal Dialog */}
+      {isAddCredOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
+          <div
+            className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 glass-panel shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Key size={15} className="text-amber-400" />
+                Add Encrypted Vault Key
+              </h3>
+              <button
+                onClick={() => setIsAddCredOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCredential} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Key Label (e.g. DB Password, API Secret, SSH Key)
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={credKey}
+                  onChange={(e) => setCredKey(e.target.value)}
+                  placeholder="e.g. Production DB Password"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Secret Value
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={credValue}
+                  onChange={(e) => setCredValue(e.target.value)}
+                  placeholder="Secret payload..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddCredOpen(false)}
+                  className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={credLoading}
+                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium disabled:opacity-50"
+                >
+                  {credLoading ? "Saving..." : "Store in Vault"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

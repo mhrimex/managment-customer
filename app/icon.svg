@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="0.55" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="refl" x1="0" y1="34" x2="0" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <!-- Upper "R" mark -->
+  <path d="M20 12h14.5c6.4 0 10.5 3.7 10.5 9.2 0 4.3-2.5 7.4-6.4 8.6L45 32h-7.6l-5.8-1.9H27V32h-7V12zm7 6v6.4h7c2.4 0 3.8-1.2 3.8-3.2S36.4 18 34 18h-7z" fill="#ffffff"/>
+  <!-- Horizon line -->
+  <rect x="14" y="34" width="36" height="2" rx="1" fill="#ffffff" fill-opacity="0.85"/>
+  <!-- Mirrored reflection -->
+  <path d="M20 54h14.5c6.4 0 10.5-3.7 10.5-9.2 0-4.3-2.5-7.4-6.4-8.6L45 34h-7.6l-5.8 1.9H27V34h-7v20zm7-6v-6.4h7c2.4 0 3.8 1.2 3.8 3.2S36.4 48 34 48h-7z" fill="url(#refl)"/>
+</svg>

@@ -1,0 +1,438 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #090e1a;
+  --foreground: #f8fafc;
+  color-scheme: dark;
+}
+
+html.light {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  color-scheme: light;
+}
+
+html {
+  font-size: 17px; /* Root scale: all rem-based text, spacing and components grow with it */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-inter), Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: "cv11", "ss01", "ss03"; /* Inter: single-storey a, open digits */
+  min-height: 100vh;
+  line-height: 1.6;
+  letter-spacing: -0.006em;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Eliminate microscopic font sizes across the app */
+.text-\[10px\] {
+  font-size: 0.8rem !important;
+  line-height: 1.2rem !important;
+  font-weight: 600 !important;
+}
+
+.text-\[11px\] {
+  font-size: 0.85rem !important;
+  line-height: 1.3rem !important;
+}
+
+/* Headings use the display face */
+h1, h2, h3 {
+  font-family: var(--font-display), var(--font-inter), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Comfortable click targets for all standard buttons & inputs */
+button, a, input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* =====================================================================
+   ENTER ANIMATIONS (replaces the tailwindcss-animate classes used in
+   markup, which were not installed and therefore did nothing)
+   ===================================================================== */
+@keyframes rs-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rs-zoom-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes rs-slide-left { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes rs-slide-top { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+
+.animate-in { animation: rs-fade-in 180ms ease-out both; }
+.animate-in.zoom-in, .animate-in.zoom-in-95 { animation-name: rs-zoom-in; }
+.animate-in.slide-in-from-left { animation-name: rs-slide-left; }
+.animate-in.slide-in-from-top-5 { animation-name: rs-slide-top; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in { animation: none !important; }
+}
+
+/* Hide Next.js Dev Indicator ("N" button at bottom of screen) */
+nextjs-portal,
+[data-nextjs-dev-tools-button],
+[data-nextjs-dev-indicator],
+[data-nextjs-toast],
+div[data-nextjs-dev-tools-button] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* =====================================================================
+   DARK MODE CONTRAST & LEGIBILITY BOOST
+   Elevates secondary text so it is never dim or hard to read
+   ===================================================================== */
+html.dark .text-slate-400 {
+  color: #cbd5e1 !important; /* Raised contrast from dim #94a3b8 to bright readable slate */
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8 !important; /* Raised from faint #64748b */
+}
+
+html.dark .text-slate-300 {
+  color: #f1f5f9 !important; /* High-clarity bright text */
+}
+
+html.dark .border-slate-800 {
+  border-color: #1e293b !important;
+}
+
+html.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.9) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(148, 163, 184, 0.16) !important;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Sleek high-contrast scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
+}
+
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Code and badge font */
+.font-mono-code,
+.font-mono {
+  font-family: var(--font-jetbrains-mono), monospace !important;
+  letter-spacing: -0.02em;
+}
+
+/* Enhanced Form Inputs */
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 1rem !important;
+}
+
+/* Taller, easier-to-hit form fields */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select {
+  min-height: 2.75rem;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #0c1222 !important;
+  border-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.dark input:focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25) !important;
+}
+
+/* High contrast table styling */
+table thead th {
+  font-size: 0.85rem !important;
+  text-transform: uppercase;
+  font-weight: 700 !important;
+  letter-spacing: 0.05em !important;
+  color: #e2e8f0 !important;
+}
+
+html.light table thead th {
+  color: #1e293b !important;
+}
+
+table tbody td {
+  font-size: 0.975rem !important;
+}
+
+/* =====================================================================
+   LIGHT MODE: HIGH CONTRAST & CRYSTAL CLEAR
+   ===================================================================== */
+html.light {
+  background-color: #f8fafc;
+}
+
+html.light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+/* Backgrounds */
+html.light .bg-slate-950 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-slate-950\/80,
+html.light .bg-slate-950\/70,
+html.light .bg-slate-950\/60,
+html.light .bg-slate-950\/50,
+html.light .bg-slate-950\/40 {
+  background-color: #f8fafc !important;
+}
+
+html.light .bg-slate-900 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-slate-900\/80,
+html.light .bg-slate-900\/90 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-slate-800 {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .bg-slate-800\/90,
+html.light .bg-slate-800\/80,
+html.light .bg-slate-800\/60 {
+  background-color: #f8fafc !important;
+}
+
+html.light .hover\:bg-slate-900:hover {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .hover\:bg-slate-800:hover {
+  background-color: #e2e8f0 !important;
+}
+
+html.light .hover\:bg-slate-700:hover {
+  background-color: #cbd5e1 !important;
+}
+
+/* Borders */
+html.light .border-slate-800,
+html.light .border-slate-800\/80,
+html.light .border-slate-800\/60 {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .border-slate-700,
+html.light .border-slate-700\/60,
+html.light .border-slate-700\/40 {
+  border-color: #cbd5e1 !important;
+}
+
+html.light .hover\:border-slate-700:hover {
+  border-color: #94a3b8 !important;
+}
+
+/* Typography in Light Mode */
+html.light .text-white {
+  color: #0f172a !important;
+}
+
+html.light .text-slate-100 {
+  color: #0f172a !important;
+}
+
+html.light .text-slate-200 {
+  color: #1e293b !important;
+}
+
+html.light .text-slate-300 {
+  color: #334155 !important;
+}
+
+html.light .text-slate-400 {
+  color: #475569 !important;
+}
+
+html.light .text-slate-500 {
+  color: #64748b !important;
+}
+
+html.light .hover\:text-slate-200:hover,
+html.light .hover\:text-white:hover {
+  color: #0f172a !important;
+}
+
+/* Light Mode Form Controls */
+html.light input,
+html.light select,
+html.light textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Glass panel in Light Mode */
+html.light .glass-panel {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Sidebar & Header */
+html.light aside {
+  background-color: #ffffff !important;
+  border-right-color: #e2e8f0 !important;
+  box-shadow: 1px 0 6px 0 rgba(0, 0, 0, 0.04);
+}
+
+html.light header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+/* Badges in Light Mode */
+html.light .bg-emerald-500\/10,
+html.light .bg-emerald-500\/15 {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #047857 !important;
+}
+
+html.light .bg-indigo-500\/10,
+html.light .bg-indigo-500\/15,
+html.light .bg-indigo-500\/20 {
+  background-color: #eef2ff !important;
+  border-color: #c7d2fe !important;
+  color: #4338ca !important;
+}
+
+html.light .bg-sky-500\/10,
+html.light .bg-sky-500\/15 {
+  background-color: #f0f9ff !important;
+  border-color: #bae6fd !important;
+  color: #0369a1 !important;
+}
+
+html.light .bg-amber-500\/10,
+html.light .bg-amber-500\/15 {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #b45309 !important;
+}
+
+html.light .bg-rose-500\/10,
+html.light .bg-rose-500\/15 {
+  background-color: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+  color: #be123c !important;
+}
+
+/* =====================================================================
+   SKELETON LOADERS
+   ===================================================================== */
+@keyframes rs-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background-color: #1e293b;
+  background-image: linear-gradient(90deg, #1e293b 0px, #334155 160px, #1e293b 320px);
+  background-size: 800px 100%;
+  background-repeat: no-repeat;
+  animation: rs-shimmer 1.4s linear infinite;
+}
+
+html.light .skeleton {
+  background-color: #e2e8f0;
+  background-image: linear-gradient(90deg, #e2e8f0 0px, #f1f5f9 160px, #e2e8f0 320px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+/* =====================================================================
+   RESPONSIVE TABLES: add class "rtable" to a <table> and data-label="..."
+   to its <td>s. Below 768px each row becomes a stacked, labelled card.
+   ===================================================================== */
+@media (max-width: 767px) {
+  .rtable thead { display: none; }
+  .rtable, .rtable tbody, .rtable tr, .rtable td { display: block; width: 100%; }
+  .rtable tbody tr { padding: 1rem 1.25rem; }
+  .rtable td {
+    padding: 0.3rem 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    text-align: right !important;
+  }
+  .rtable td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+    text-align: left;
+  }
+  .rtable td[data-primary] {
+    display: block;
+    text-align: left !important;
+    padding-bottom: 0.6rem !important;
+  }
+  .rtable td[colspan] { display: block; text-align: center !important; }
+}
