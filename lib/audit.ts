@@ -36,7 +36,7 @@ export async function logAuditEvent(entry: {
   user_id?: string | null;
   user_email: string;
   action: string;
-  resource_type: 'CREDENTIAL' | 'CLIENT' | 'DEPLOYMENT' | 'SERVER' | 'SOLUTION' | 'USER' | 'SYSTEM';
+  resource_type: 'CREDENTIAL' | 'CLIENT' | 'DEPLOYMENT' | 'SERVER' | 'SOLUTION' | 'USER' | 'SYSTEM' | 'EMPLOYEE' | 'ACCOUNT';
   resource_id?: string | null;
   details?: string | null;
   ip_address?: string | null;

@@ -15,9 +15,10 @@ import {
   HardDrive,
   Edit3,
   Trash2,
+  KeyRound,
 } from "lucide-react";
 import { useFeedback } from "@/components/Feedback";
-import { Server } from "@/types";
+import { Server, ServerAccount } from "@/types";
 import { useApp } from "@/components/AppLayoutClient";
 import CopyButton from "@/components/CopyButton";
 import { SkeletonCards } from "@/components/Skeleton";
@@ -30,9 +31,15 @@ export default function ServersPage() {
     const hosted = server.hosted_deployments?.length || 0;
     const ok = await confirm({
       title: `Delete ${server.server_name}?`,
-      message: hosted
-        ? `${hosted} deployment(s) are hosted on this server. They will be kept, but will show "no server" until you assign another one.`
-        : "The server will be removed from the infrastructure list.",
+      message: [
+        hosted
+          ? `${hosted} deployment(s) are hosted on this server. They will be kept, but will show "no server" until you assign another one.`
+          : "The server will be removed from the infrastructure list.",
+        (() => {
+          const n = accounts.filter((a) => a.server_id.toLowerCase() === server.id.toLowerCase()).length;
+          return n ? `Its ${n} employee account(s) on this server will be deleted.` : "";
+        })(),
+      ].filter(Boolean).join(" "),
       confirmLabel: "Delete server",
       danger: true,
     });
@@ -48,6 +55,7 @@ export default function ServersPage() {
     }
   };
   const [servers, setServers] = useState<Server[]>([]);
+  const [accounts, setAccounts] = useState<ServerAccount[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchServers = async () => {
@@ -67,6 +75,11 @@ export default function ServersPage() {
 
   useEffect(() => {
     fetchServers();
+    // employee logins on each server (shown under every server card)
+    fetch("/api/server-accounts")
+      .then((r) => r.json())
+      .then((d) => d.success && setAccounts(d.data))
+      .catch(() => {});
   }, [refreshTrigger]);
 
   const getServerTypeBadge = (type: string) => {
@@ -232,6 +245,48 @@ export default function ServersPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Employee accounts on this server */}
+                {(() => {
+                  const here = accounts.filter((a) => a.server_id.toLowerCase() === server.id.toLowerCase());
+                  return (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between text-xs mb-2">
+                        <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                          <KeyRound size={13} className="text-teal-400" />
+                          Employee Accounts ({here.length})
+                        </span>
+                        <Link href="/employees" className="text-[11px] text-teal-400 hover:underline">
+                          Employees
+                        </Link>
+                      </div>
+                      {here.length ? (
+                        <div className="space-y-1.5">
+                          {here.map((a) => (
+                            <Link
+                              key={a.id}
+                              href={`/employees/${a.employee_id}`}
+                              className="p-2 rounded-lg bg-slate-950/40 border border-slate-800/60 hover:border-teal-500/40 flex items-center gap-2 text-xs"
+                            >
+                              <span className="font-mono font-semibold text-teal-300 truncate">{a.username}</span>
+                              <span className="text-slate-400 truncate">{a.employee_name}</span>
+                              {!a.is_active && <span className="text-[10px] text-slate-500">(disabled)</span>}
+                              <span
+                                className="ml-auto shrink-0 flex items-center gap-1 text-slate-400"
+                                title={a.companies.map((c) => c.company_name).join(", ") || "No companies"}
+                              >
+                                <Building2 size={12} />
+                                {a.companies.length}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-500 italic py-1">No employee accounts on this server yet.</div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Server Card Footer */}

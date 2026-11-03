@@ -11,7 +11,8 @@ import {
   Boxes, 
   ExternalLink,
   ArrowRight,
-  Command
+  Command,
+  Contact,
 } from "lucide-react";
 import { AutocompleteSearchResult } from "@/types";
 import ModalShell, { ModalCloseButton, whenModalHistorySettled } from "@/components/ModalShell";
@@ -77,7 +78,8 @@ export default function GlobalSearchOverlay({
     results.clients.length +
     results.deployments.length +
     results.servers.length +
-    results.solutions.length;
+    results.solutions.length +
+    (results.employees?.length || 0);
 
   const handleSelect = async (url: string) => {
     onClose();
@@ -243,6 +245,33 @@ export default function GlobalSearchOverlay({
                       <div className="text-xs text-slate-300 font-mono mt-0.5">{d.subtitle}</div>
                     </div>
                     <ArrowRight size={16} className="text-slate-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Employees matches (name or server username) */}
+          {(results.employees?.length || 0) > 0 && (
+            <div>
+              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider px-2 mb-2 flex items-center gap-2">
+                <Contact size={15} className="text-teal-400" />
+                <span>Employees & Usernames ({results.employees!.length})</span>
+              </div>
+              <div className="space-y-1.5">
+                {results.employees!.map((e) => (
+                  <button
+                    key={e.id}
+                    onClick={() => handleSelect(`/employees/${e.id}`)}
+                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-800/90 text-left group transition-colors border border-transparent hover:border-slate-700/80"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-base font-bold text-white group-hover:text-teal-400 transition-colors truncate">
+                        {e.title}
+                      </div>
+                      <div className="text-xs text-slate-300 font-mono mt-0.5 truncate">{e.subtitle}</div>
+                    </div>
+                    <ArrowRight size={16} className="text-slate-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
                   </button>
                 ))}
               </div>

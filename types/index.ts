@@ -143,6 +143,8 @@ export interface AutocompleteSearchResult {
   deployments: Array<{ id: string; title: string; subtitle: string; clientId: string; type: 'deployment' }>;
   servers: Array<{ id: string; title: string; subtitle: string; type: 'server' }>;
   solutions: Array<{ id: string; title: string; subtitle: string; type: 'solution' }>;
+  /** employees matched by name or by one of their server usernames */
+  employees?: Array<{ id: string; title: string; subtitle: string; type: 'employee' }>;
 }
 
 export type UserRole = 'ADMIN' | 'SUPPORT_ENGINEER';
@@ -169,7 +171,7 @@ export interface AuditLog {
   user_id?: string | null;
   user_email: string;
   action: 'LOGIN' | 'LOGOUT' | 'VIEW_CREDENTIAL' | 'COPY_CREDENTIAL' | 'CREATE_DEPLOYMENT' | 'UPDATE_DEPLOYMENT' | 'DELETE_DEPLOYMENT' | 'CREATE_CLIENT' | 'UPDATE_CLIENT' | 'DELETE_CLIENT' | 'DISPATCH_ALERTS' | string;
-  resource_type: 'CREDENTIAL' | 'CLIENT' | 'DEPLOYMENT' | 'SERVER' | 'SOLUTION' | 'USER' | 'SYSTEM';
+  resource_type: 'CREDENTIAL' | 'CLIENT' | 'DEPLOYMENT' | 'SERVER' | 'SOLUTION' | 'USER' | 'SYSTEM' | 'EMPLOYEE' | 'ACCOUNT';
   resource_id?: string | null;
   details?: string | null;
   ip_address?: string | null;
@@ -208,5 +210,47 @@ export interface SystemBackupData {
   deployments: ClientDeployment[];
   credentials: DeploymentCredential[];
   audit_logs?: AuditLog[];
+  // since backup version 1.1.0
+  employees?: Partial<Employee>[];
+  server_accounts?: Array<Record<string, any>>;
+  server_account_access?: Array<{ account_id: string; client_id: string }>;
+}
+
+/** A person who logs in to systems hosted on your servers (e.g. Mohamad). */
+export interface Employee {
+  id: string;
+  full_name: string;
+  job_title?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  /** company the person works for (optional) */
+  client_id?: string | null;
+  client_name?: string | null;
+  notes?: string | null;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  accounts_count?: number;
+  /** filled on lists (compact) and on the detail page (full) */
+  accounts?: ServerAccount[];
+}
+
+/** One login on one server (e.g. mohamad1 on Rimex) and the companies it can open there. */
+export interface ServerAccount {
+  id: string;
+  employee_id: string;
+  employee_name?: string;
+  employee_active?: boolean;
+  server_id: string;
+  server_name?: string;
+  server_ip?: string;
+  username: string;
+  /** the password itself is only returned by the reveal endpoint */
+  has_password: boolean;
+  is_active: boolean;
+  notes?: string | null;
+  companies: Array<{ id: string; company_name: string }>;
+  created_at?: string;
+  updated_at?: string;
 }
 

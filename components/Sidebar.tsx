@@ -19,6 +19,7 @@ import {
   Sun,
   Moon,
   MonitorSmartphone,
+  Contact,
 } from "lucide-react";
 import { SessionUser } from "@/types";
 import BrandLogo from "@/components/BrandLogo";
@@ -77,6 +78,11 @@ export default function Sidebar({
       name: "Clients",
       href: "/clients",
       icon: Building2,
+    },
+    {
+      name: "Employees",
+      href: "/employees",
+      icon: Contact,
     },
     {
       name: "Servers & Infra",

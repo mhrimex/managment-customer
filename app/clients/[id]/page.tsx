@@ -27,8 +27,10 @@ import {
   Clock,
   Copy,
   Check,
+  KeyRound,
+  Contact,
 } from "lucide-react";
-import { Client, ClientDeployment, DeploymentCredential } from "@/types";
+import { Client, ClientDeployment, DeploymentCredential, ServerAccount } from "@/types";
 import { useApp } from "@/components/AppLayoutClient";
 import StatusBadge, { EnvironmentBadge } from "@/components/StatusBadge";
 import RenewalBadge from "@/components/RenewalBadge";
@@ -78,6 +80,15 @@ export default function ClientDetailPage({
 
   useEffect(() => {
     fetchClient();
+  }, [id, refreshTrigger]);
+
+  // Employee logins that can open this company (on any server)
+  const [access, setAccess] = useState<ServerAccount[]>([]);
+  useEffect(() => {
+    fetch(`/api/server-accounts?client_id=${encodeURIComponent(id)}`)
+      .then((r) => r.json())
+      .then((d) => d.success && setAccess(d.data))
+      .catch(() => {});
   }, [id, refreshTrigger]);
 
   // Secret values are never in the client payload; fetch one on demand (server logs the read).
@@ -419,6 +430,44 @@ export default function ClientDetailPage({
             )}
           </div>
         </div>
+      </div>
+
+      {/* Employees whose server accounts can open this company */}
+      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 glass-panel p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <KeyRound size={18} className="text-teal-400" />
+            Users with access ({access.length})
+          </h2>
+          <Link href="/employees" className="text-sm font-semibold text-teal-400 hover:underline flex items-center gap-1.5">
+            <Contact size={15} /> Employees
+          </Link>
+        </div>
+        {access.length === 0 ? (
+          <p className="text-sm text-slate-500 italic">
+            No employee accounts can open this company yet. Add them from the Employees page.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+            {access.map((a) => (
+              <Link
+                key={a.id}
+                href={`/employees/${a.employee_id}`}
+                className={`p-3 rounded-xl border flex items-center gap-3 hover:border-teal-500/40 transition-colors ${
+                  a.is_active ? "bg-slate-950/50 border-slate-800" : "bg-slate-950/30 border-slate-800/60 opacity-70"
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-slate-100 truncate">{a.employee_name}</div>
+                  <div className="text-xs text-slate-400 truncate">
+                    <span className="font-mono text-teal-300">{a.username}</span> on {a.server_name}
+                    {!a.is_active && " (disabled)"}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Solutions Deployed for This Client */}

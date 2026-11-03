@@ -9,8 +9,8 @@
 --   Option B:  open this file in SQL Server Management Studio and press F5.
 --       Change the database name below if yours is different.
 --
--- Creates: database, 8 tables, indexes, updated_at triggers, 1 view,
--- 6 stored procedures, 2 default staff accounts.
+-- Creates: database, 11 tables, indexes, updated_at triggers, 2 views,
+-- 7 stored procedures, 2 default staff accounts.
 --
 -- Demo data (sample clients/servers/deployments) is NOT in this file.
 -- It is in seed-sample-data.sql  ->  npm run db:seed-sample
@@ -277,7 +277,87 @@ END;
 GO
 
 -- ---------------------------------------------------------------------
--- 5. VIEWS & STORED PROCEDURES
+-- 5. EMPLOYEES & SERVER ACCOUNTS
+--    Employees -> their login on each server -> the companies that login can open.
+--    The same username may exist on different servers (unique per server).
+-- ---------------------------------------------------------------------
+
+-- Table: employees (people who log in to the systems hosted on your servers)
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='employees' AND xtype='U')
+CREATE TABLE employees (
+    id          UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    full_name   NVARCHAR(255) NOT NULL,
+    job_title   NVARCHAR(150) NULL,
+    email       NVARCHAR(255) NULL,
+    phone       NVARCHAR(50)  NULL,
+    -- the company the person works for (optional). No cascade: deleting a client
+    -- clears this link in the app instead of deleting the employee.
+    client_id   UNIQUEIDENTIFIER NULL REFERENCES clients(id),
+    notes       NVARCHAR(MAX) NULL,
+    is_active   BIT NOT NULL DEFAULT 1,
+    created_at  DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at  DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+GO
+
+-- Table: server_accounts (one login on one server; the same username may exist on other servers)
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='server_accounts' AND xtype='U')
+CREATE TABLE server_accounts (
+    id           UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    employee_id  UNIQUEIDENTIFIER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    server_id    UNIQUEIDENTIFIER NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+    username     NVARCHAR(150) NOT NULL,
+    password_enc NVARCHAR(MAX) NULL,          -- AES-256-GCM, same as the vault
+    is_active    BIT NOT NULL DEFAULT 1,
+    notes        NVARCHAR(MAX) NULL,
+    created_at   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT ux_server_accounts_server_username UNIQUE (server_id, username)
+);
+GO
+
+-- Table: server_account_access (which companies an account can open on its server)
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='server_account_access' AND xtype='U')
+CREATE TABLE server_account_access (
+    account_id  UNIQUEIDENTIFIER NOT NULL REFERENCES server_accounts(id) ON DELETE CASCADE,
+    client_id   UNIQUEIDENTIFIER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    created_at  DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    PRIMARY KEY (account_id, client_id)
+);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_employees_full_name')
+    CREATE INDEX idx_employees_full_name ON employees(full_name);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_employees_client_id')
+    CREATE INDEX idx_employees_client_id ON employees(client_id);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_server_accounts_employee_id')
+    CREATE INDEX idx_server_accounts_employee_id ON server_accounts(employee_id);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_server_accounts_username')
+    CREATE INDEX idx_server_accounts_username ON server_accounts(username);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_server_account_access_client_id')
+    CREATE INDEX idx_server_account_access_client_id ON server_account_access(client_id);
+GO
+
+CREATE OR ALTER TRIGGER trg_employees_updated_at
+ON employees AFTER UPDATE AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE employees SET updated_at = SYSUTCDATETIME()
+    WHERE id IN (SELECT id FROM inserted);
+END;
+GO
+
+CREATE OR ALTER TRIGGER trg_server_accounts_updated_at
+ON server_accounts AFTER UPDATE AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE server_accounts SET updated_at = SYSUTCDATETIME()
+    WHERE id IN (SELECT id FROM inserted);
+END;
+GO
+
+-- ---------------------------------------------------------------------
+-- 6. VIEWS & STORED PROCEDURES
 --    For reports, Excel/Power BI, and maintenance jobs. The web app does
 --    not depend on them; it queries the tables directly.
 -- ---------------------------------------------------------------------
@@ -407,6 +487,50 @@ BEGIN
 END;
 GO
 
+-- One row per (employee, server account, company it can open)
+CREATE OR ALTER VIEW vw_server_account_access AS
+SELECT
+    e.id            AS employee_id,
+    e.full_name     AS employee_name,
+    e.job_title,
+    e.is_active     AS employee_active,
+    a.id            AS account_id,
+    a.username,
+    a.is_active     AS account_active,
+    sv.id           AS server_id,
+    sv.server_name,
+    sv.ip_address   AS server_ip,
+    c.id            AS client_id,
+    c.company_name
+FROM server_accounts a
+JOIN employees e  ON e.id  = a.employee_id
+JOIN servers   sv ON sv.id = a.server_id
+LEFT JOIN server_account_access x ON x.account_id = a.id
+LEFT JOIN clients c ON c.id = x.client_id;
+GO
+
+-- Where does a username exist, and which companies can it open on each server?
+CREATE OR ALTER PROCEDURE sp_find_username
+    @username NVARCHAR(150)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- (FOR XML PATH instead of STRING_AGG keeps this working on SQL Server 2016)
+    SELECT sv.server_name, sv.ip_address AS server_ip, a.username, e.full_name AS employee_name,
+           a.is_active AS account_active,
+           STUFF((SELECT N', ' + c.company_name
+                    FROM server_account_access x JOIN clients c ON c.id = x.client_id
+                   WHERE x.account_id = a.id
+                   ORDER BY c.company_name
+                   FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, N'') AS companies
+    FROM server_accounts a
+    JOIN employees e  ON e.id  = a.employee_id
+    JOIN servers   sv ON sv.id = a.server_id
+    WHERE a.username = @username
+    ORDER BY sv.server_name;
+END;
+GO
+
 -- Housekeeping: delete audit-log entries older than @keep_days (default 365). Returns rows deleted.
 CREATE OR ALTER PROCEDURE sp_purge_old_audit_logs
     @keep_days INT = 365
@@ -424,7 +548,7 @@ END;
 GO
 
 -- ---------------------------------------------------------------------
--- 6. DEFAULT STAFF ACCOUNTS
+-- 7. DEFAULT STAFF ACCOUNTS
 --    admin@agency.com / Admin123!      (ADMIN)
 --    support@agency.com / Support123!  (SUPPORT_ENGINEER)
 --    CHANGE BOTH PASSWORDS after first login: Users page -> edit user.

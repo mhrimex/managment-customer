@@ -13,6 +13,7 @@ import {
   UserRole,
 } from "@/types";
 import { encrypt, decrypt } from "./crypto";
+import { EMPLOYEES_SCHEMA_SQL } from "./schema-employees";
 import { hashPassword } from "./auth";
 
 // =====================================================================
@@ -114,6 +115,32 @@ function runMigrations(pool: sql.ConnectionPool): Promise<void> {
           IF ERROR_NUMBER() NOT IN (1913, 3701, 3727, 3728) THROW;
         END CATCH
       `);
+      // Employees & server accounts (same SQL as schema.sql section 5).
+      // Several processes can start at once (build workers, IIS recycle), so take an
+      // exclusive app lock and run the batches inside one transaction: they run one
+      // process at a time and each IF NOT EXISTS check sees the previous one's work.
+      const tx = new sql.Transaction(pool);
+      await tx.begin();
+      try {
+        await new sql.Request(tx).query(
+          "EXEC sp_getapplock @Resource = 'client_mgmt_migrations', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 120000"
+        );
+        for (const batch of EMPLOYEES_SCHEMA_SQL.split(/^\s*GO\s*$/m).map((b) => b.trim()).filter(Boolean)) {
+          // triggers only need creating once; skip CREATE OR ALTER when they already exist
+          const trigger = batch.match(/CREATE OR ALTER TRIGGER (\w+)/);
+          if (trigger) {
+            const exists = await new sql.Request(tx)
+              .input("n", sql.NVarChar, trigger[1])
+              .query("SELECT OBJECT_ID(@n, 'TR') AS id");
+            if (exists.recordset[0].id !== null) continue;
+          }
+          await new sql.Request(tx).batch(batch);
+        }
+        await tx.commit();
+      } catch (err) {
+        try { await tx.rollback(); } catch { /* already rolled back */ }
+        throw err;
+      }
       await importMemoryDataOnce(pool);
     })().catch((err: any) => {
       console.warn("[DB] Migration failed:", err.message);
@@ -220,7 +247,7 @@ export async function query<T = any>(
   return result.recordset as T[];
 }
 
-async function dbAvailable(): Promise<boolean> {
+export async function dbAvailable(): Promise<boolean> {
   const p = await getPool();
   return p !== null && globalPoolStore._mssql_ready === true;
 }
@@ -431,7 +458,11 @@ export async function updateClient(id: string, data: Partial<Client>): Promise<C
 export async function deleteClient(id: string): Promise<boolean> {
   if (await dbAvailable()) {
     try {
-      await query("DELETE FROM clients WHERE id = @id", { id });
+      await inTransaction(async (run) => {
+        // employees who worked for this company are kept, just no longer linked to it
+        await run("UPDATE employees SET client_id = NULL WHERE client_id = @id", { id });
+        await run("DELETE FROM clients WHERE id = @id", { id });
+      });
       return true;
     } catch { /* fallback */ }
   }
@@ -690,7 +721,7 @@ function sameId(a?: string | null, b?: string | null): boolean {
 }
 
 /** Run a statement and return the number of affected rows. */
-async function execute(sqlText: string, params: Record<string, any> = {}): Promise<number> {
+export async function execute(sqlText: string, params: Record<string, any> = {}): Promise<number> {
   const p = await getPool();
   if (!p) throw new Error("SQL Server pool not available");
   const request = new sql.Request(p);
@@ -1063,10 +1094,10 @@ export async function searchAll(q: string): Promise<AutocompleteSearchResult> {
 // Backup & Maintenance
 // =====================================================================
 
-type TxRun = (sqlText: string, params?: Record<string, any>) => Promise<sql.IResult<any>>;
+export type TxRun = (sqlText: string, params?: Record<string, any>) => Promise<sql.IResult<any>>;
 
 /** Run several statements atomically: either all succeed or none are applied. */
-async function inTransaction(work: (run: TxRun) => Promise<void>): Promise<void> {
+export async function inTransaction(work: (run: TxRun) => Promise<void>): Promise<void> {
   const p = await getPool();
   if (!p) throw new Error("SQL Server pool not available");
   const tx = new sql.Transaction(p);
@@ -1140,14 +1171,23 @@ export async function exportSystemBackup(): Promise<SystemBackupData> {
     ? await query<DeploymentCredential>("SELECT * FROM deployment_credentials_vault ORDER BY created_at ASC")
     : globalStore._db_credentials || [];
 
+  const sqlOn = await dbAvailable();
+  const employees = sqlOn ? await query("SELECT * FROM employees ORDER BY full_name") : [];
+  // account passwords stay encrypted in the backup, like the vault
+  const server_accounts = sqlOn ? await query("SELECT * FROM server_accounts ORDER BY username") : [];
+  const server_account_access = sqlOn ? await query("SELECT account_id, client_id FROM server_account_access") : [];
+
   return {
-    version: "1.0.0", exported_at: new Date().toISOString(),
+    version: "1.1.0", exported_at: new Date().toISOString(),
     stats: { clients_count: clients.length, solutions_count: solutions.length, servers_count: servers.length, deployments_count: deployments.length, credentials_count: credentials.length, audit_logs_count: 0 },
     clients: clients.map(({ deployments: _d, deployments_count: _n, ...c }) => c),
     solutions: solutions.map(({ deployments_count: _n, ...s }: any) => s),
     servers: servers.map(({ deployments_count: _n, hosted_deployments: _h, ...s }) => s),
     deployments: deployments.map(({ client, solution, server, credentials: _c, ...d }) => d),
     credentials,
+    employees,
+    server_accounts,
+    server_account_access,
   };
 }
 
@@ -1170,7 +1210,21 @@ export async function restoreSystemBackup(backup: Partial<SystemBackupData>): Pr
     const credentials = (backup.credentials || []).filter((c) => deploymentIds.has(String(c.deployment_id).toLowerCase()));
     const skipped = (backup.deployments?.length || 0) - deployments.length;
 
+    // Employees & accounts (backups from version 1.1.0+); skip rows pointing at missing records
+    const employees = (backup.employees || []) as any[];
+    const employeeIds = new Set(employees.map((e) => String(e.id).toLowerCase()));
+    const accounts = ((backup.server_accounts || []) as any[]).filter(
+      (a) => employeeIds.has(String(a.employee_id).toLowerCase()) && serverIds.has(String(a.server_id).toLowerCase())
+    );
+    const accountIds = new Set(accounts.map((a) => String(a.id).toLowerCase()));
+    const access = ((backup.server_account_access || []) as any[]).filter(
+      (x) => accountIds.has(String(x.account_id).toLowerCase()) && clientIds.has(String(x.client_id).toLowerCase())
+    );
+
     await inTransaction(async (run) => {
+      await run("DELETE FROM server_account_access");
+      await run("DELETE FROM server_accounts");
+      await run("DELETE FROM employees");
       await run("DELETE FROM deployment_credentials_vault");
       await run("DELETE FROM client_deployments");
       await run("DELETE FROM clients");
@@ -1185,11 +1239,34 @@ export async function restoreSystemBackup(backup: Partial<SystemBackupData>): Pr
         });
       }
       for (const c of credentials) await txInsertCredential(run, c);
+      for (const e of employees) {
+        await run(
+          `INSERT INTO employees (id, full_name, job_title, email, phone, client_id, notes, is_active)
+           VALUES (@id, @full_name, @job_title, @email, @phone, @client_id, @notes, @is_active)`,
+          { id: e.id, full_name: e.full_name, job_title: e.job_title || null, email: e.email || null, phone: e.phone || null,
+            client_id: e.client_id && clientIds.has(String(e.client_id).toLowerCase()) ? e.client_id : null,
+            notes: e.notes || null, is_active: e.is_active === false || e.is_active === 0 ? 0 : 1 }
+        );
+      }
+      for (const a of accounts) {
+        const pw = a.password_enc || null;
+        await run(
+          `INSERT INTO server_accounts (id, employee_id, server_id, username, password_enc, is_active, notes)
+           VALUES (@id, @employee_id, @server_id, @username, @password_enc, @is_active, @notes)`,
+          { id: a.id, employee_id: a.employee_id, server_id: a.server_id, username: a.username,
+            password_enc: pw && !String(pw).startsWith("ENC(") ? encrypt(String(pw)) : pw,
+            is_active: a.is_active === false || a.is_active === 0 ? 0 : 1, notes: a.notes || null }
+        );
+      }
+      for (const x of access) {
+        await run("INSERT INTO server_account_access (account_id, client_id) VALUES (@account_id, @client_id)",
+          { account_id: x.account_id, client_id: x.client_id });
+      }
     });
 
     return {
       success: true,
-      message: `Restored ${clients.length} clients, ${servers.length} servers, ${deployments.length} deployments and ${credentials.length} vault credentials.` +
+      message: `Restored ${clients.length} clients, ${servers.length} servers, ${deployments.length} deployments, ${credentials.length} vault credentials, ${employees.length} employees and ${accounts.length} server accounts.` +
         (skipped > 0 ? ` Skipped ${skipped} deployment(s) whose client or solution was missing from the backup.` : ""),
     };
   }
@@ -1206,6 +1283,9 @@ export async function restoreSystemBackup(backup: Partial<SystemBackupData>): Pr
 export async function clearOrResetSystemData(mode: "reset_seed" | "clear_all"): Promise<{ success: boolean; message: string }> {
   if (await dbAvailable()) {
     await inTransaction(async (run) => {
+      await run("DELETE FROM server_account_access");
+      await run("DELETE FROM server_accounts");
+      await run("DELETE FROM employees");
       await run("DELETE FROM deployment_credentials_vault");
       await run("DELETE FROM client_deployments");
       await run("DELETE FROM clients");
@@ -1235,7 +1315,7 @@ export async function clearOrResetSystemData(mode: "reset_seed" | "clear_all"): 
     globalStore._db_deployments = [];
     globalStore._db_credentials = [];
     globalStore._db_solutions = [];
-    return { success: true, message: "All clients, servers, deployments, vault credentials, and solutions have been purged." };
+    return { success: true, message: "All clients, servers, deployments, vault credentials, employees, server accounts and solutions have been purged." };
   }
 }
 
