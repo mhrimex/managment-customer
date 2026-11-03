@@ -151,8 +151,8 @@ export default function ClientsPage() {
             >
               <div>
                 {/* Header */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3.5 min-w-0">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-center gap-3.5 min-w-0 flex-1 basis-[13rem]">
                     <CompanyAvatar name={client.company_name} logoUrl={client.logo_url} size="lg" />
                     <div className="min-w-0">
                       <Link

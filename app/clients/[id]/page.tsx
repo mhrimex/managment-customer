@@ -1,5 +1,6 @@
 "use client";
 
+import ModalShell, { ModalCloseButton } from "@/components/ModalShell";
 import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -451,21 +452,21 @@ export default function ClientDetailPage({
               >
                 {/* Header row: Solution Name, Environment, Status */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-600/20">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="shrink-0 p-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-600/20">
                       <Layers size={20} />
                     </div>
-                    <div>
-                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-base font-bold text-white flex flex-wrap items-center gap-2">
                         {dep.solution?.name}
                         <EnvironmentBadge env={dep.environment} />
                       </h3>
-                      <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                      <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                         <span className="text-indigo-400 font-mono">{dep.solution?.category}</span>
                         <span>•</span>
                         <span className="font-mono">{dep.version_installed || "v1.0.0"}</span>
                         <span>•</span>
-                        <span>License: {dep.license_type}</span>
+                        <span>License: {dep.license_type.replace(/_/g, " ").toLowerCase()}</span>
                       </div>
                     </div>
                   </div>
@@ -651,25 +652,16 @@ export default function ClientDetailPage({
 
       {/* Add Credential Modal Dialog */}
       {isAddCredOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
-          <div
-            className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 glass-panel shadow-2xl space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Key size={15} className="text-amber-400" />
-                Add Encrypted Vault Key
-              </h3>
-              <button
-                onClick={() => setIsAddCredOpen(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                &times;
-              </button>
-            </div>
-
-            <form onSubmit={handleAddCredential} className="space-y-3.5 text-xs">
+        <ModalShell onClose={() => setIsAddCredOpen(false)} busy={credLoading} size="sm">
+          <div className="flex items-center justify-between gap-3 px-5 sm:px-7 py-3.5 sm:py-5 border-b border-slate-800 shrink-0">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Key size={18} className="text-amber-400" />
+              Add Encrypted Vault Key
+            </h3>
+            <ModalCloseButton onClick={() => setIsAddCredOpen(false)} disabled={credLoading} />
+          </div>
+          <div className="overflow-y-auto overscroll-contain min-h-0 p-5 sm:p-7 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-7">
+            <form onSubmit={handleAddCredential} className="space-y-4 text-sm">
               <div>
                 <label className="block text-slate-300 font-medium mb-1">
                   Key Label (e.g. DB Password, API Secret, SSH Key)
@@ -698,25 +690,25 @@ export default function ClientDetailPage({
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 pt-4 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsAddCredOpen(false)}
-                  className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={credLoading}
-                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium disabled:opacity-50"
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold disabled:opacity-50"
                 >
                   {credLoading ? "Saving..." : "Store in Vault"}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

@@ -1,14 +1,17 @@
 "use client";
 
+import { createPortal } from "react-dom";
+import { useDismissable, whenModalHistorySettled } from "@/components/ModalShell";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { 
-  Search, 
-  Menu, 
-  Bell, 
-  Plus, 
-  Sun, 
-  Moon, 
+import { useRouter } from "next/navigation";
+import {
+  Search,
+  Menu,
+  Bell,
+  Plus,
+  Sun,
+  Moon,
   AlertTriangle,
   Building2,
   ExternalLink,
@@ -33,6 +36,15 @@ export default function Navbar({
 }: NavbarProps) {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
+  const router = useRouter();
+  // close the alerts panel first, then change page
+  const closeAlertsAndGo = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    const href = e.currentTarget.getAttribute("href") || "/";
+    setShowAlertsDropdown(false);
+    whenModalHistorySettled().then(() => router.push(href));
+  };
   const [isDark, setIsDark] = useState(true);
   const [dispatching, setDispatching] = useState(false);
   const [dispatchMessage, setDispatchMessage] = useState<string | null>(null);
@@ -106,12 +118,12 @@ export default function Navbar({
   const expiringCount = metrics ? metrics.expiring_30_days + metrics.expired_licenses : 0;
 
   return (
-    <header className="sticky top-0 z-20 h-[4.5rem] bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-4 md:px-7 lg:px-10 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-20 h-[4.5rem] bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-4 md:px-7 lg:px-10 flex items-center justify-between gap-2 sm:gap-4">
       {/* Left section: mobile hamburger & search bar */}
-      <div className="flex items-center gap-3 flex-1 max-w-2xl">
+      <div className="flex items-center gap-1.5 sm:gap-3 flex-1 min-w-0 max-w-2xl">
         <button
           onClick={onOpenMobileMenu}
-          className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 md:hidden"
+          className="shrink-0 w-11 h-11 inline-flex items-center justify-center text-slate-300 hover:text-white rounded-xl hover:bg-slate-900 md:hidden"
           aria-label="Open Navigation Menu"
         >
           <Menu size={24} />
@@ -120,12 +132,12 @@ export default function Navbar({
         {/* Global Search Trigger Input */}
         <button
           onClick={onOpenSearch}
-          className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-slate-700 text-base text-slate-400 hover:text-white transition-all shadow-inner group"
+          className="w-full min-w-0 flex items-center justify-between px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-slate-700 text-base text-slate-400 hover:text-white transition-all shadow-inner group"
         >
-          <span className="flex items-center gap-2.5">
-            <Search size={19} className="text-slate-400 group-hover:text-indigo-400 transition-colors" />
-            <span className="hidden sm:inline">Search clients, servers, domains, IPs, solutions...</span>
-            <span className="sm:hidden">Search system...</span>
+          <span className="flex items-center gap-2.5 min-w-0">
+            <Search size={19} className="shrink-0 text-slate-400 group-hover:text-indigo-400 transition-colors" />
+            <span className="hidden sm:inline truncate">Search clients, servers, domains, IPs, solutions...</span>
+            <span className="sm:hidden truncate whitespace-nowrap">Search...</span>
           </span>
           <kbd className="hidden sm:inline-flex items-center gap-1 font-mono text-xs bg-slate-800 px-2 py-0.5 rounded border border-slate-700 text-slate-300 font-semibold">
             Ctrl+K
@@ -134,7 +146,7 @@ export default function Navbar({
       </div>
 
       {/* Right section: Quick actions, notifications, theme */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-0.5 sm:gap-2.5 shrink-0">
         {/* Quick New Client button */}
         {onOpenNewClient && (
           <button
@@ -161,8 +173,9 @@ export default function Navbar({
         <div className="relative">
           <button
             onClick={() => setShowAlertsDropdown(!showAlertsDropdown)}
-            className="p-2.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 relative transition-colors"
+            className="w-11 h-11 inline-flex items-center justify-center text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 relative transition-colors"
             title="Renewal Alerts"
+            aria-label="Renewal alerts"
           >
             <Bell size={22} />
             {expiringCount > 0 && (
@@ -172,10 +185,7 @@ export default function Navbar({
 
           {/* Alerts Dropdown Modal */}
           {showAlertsDropdown && (
-            <div 
-              className="absolute right-0 mt-2 w-[22rem] sm:w-[28rem] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 glass-panel z-50 text-sm animate-in fade-in zoom-in-95 duration-150"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <AlertsPopover onClose={() => setShowAlertsDropdown(false)}>
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <span className="font-semibold text-white flex items-center gap-2">
                   <AlertTriangle size={15} className="text-amber-400" />
@@ -183,8 +193,8 @@ export default function Navbar({
                 </span>
                 <Link
                   href="/deployments?renewal_due=30"
-                  onClick={() => setShowAlertsDropdown(false)}
-                  className="text-[11px] text-indigo-400 hover:underline"
+                  onClick={closeAlertsAndGo}
+                  className="text-sm font-semibold text-indigo-400 hover:underline px-2 py-1"
                 >
                   View All
                 </Link>
@@ -219,7 +229,7 @@ export default function Navbar({
                     <Link
                       key={item.id}
                       href={`/clients/${item.client_id}`}
-                      onClick={() => setShowAlertsDropdown(false)}
+                      onClick={closeAlertsAndGo}
                       className="block p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/40 text-left transition-colors"
                     >
                       <div className="flex items-center justify-between text-slate-200 font-medium">
@@ -239,19 +249,41 @@ export default function Navbar({
                   </div>
                 )}
               </div>
-            </div>
+            </AlertsPopover>
           )}
         </div>
 
         {/* Theme Toggle Button */}
         <button
           onClick={toggleTheme}
-          className="p-2.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition-colors"
+          className="w-11 h-11 inline-flex items-center justify-center text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition-colors"
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
           title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
           {isDark ? <Sun size={22} /> : <Moon size={22} />}
         </button>
       </div>
     </header>
+  );
+}
+
+/** Renewal alerts panel: full-width sheet under the header on phones, dropdown on desktop.
+ *  Tap outside, Escape or the phone's Back button closes it. */
+function AlertsPopover({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const tryClose = useDismissable(onClose);
+  // Rendered into <body>: the header's backdrop-blur would otherwise trap position:fixed inside it.
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50 sm:bg-black/20" onClick={tryClose} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-label="Renewal alerts"
+        className="fixed left-3 right-3 top-[4.9rem] sm:left-auto sm:right-6 sm:w-[28rem] max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 z-50 text-sm animate-in fade-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </>,
+    document.body
   );
 }

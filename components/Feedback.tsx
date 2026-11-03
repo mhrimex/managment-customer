@@ -1,5 +1,6 @@
 "use client";
 
+import ModalShell from "@/components/ModalShell";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
 
@@ -76,16 +77,10 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     setDialog(null);
   }, []);
 
-  // Keyboard: Escape cancels, focus lands on the confirm button
+  // Focus lands on the confirm button (Escape / Back / backdrop are handled by ModalShell)
   useEffect(() => {
-    if (!dialog) return;
-    confirmBtn.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [dialog, close]);
+    if (dialog) confirmBtn.current?.focus();
+  }, [dialog]);
 
   return (
     <FeedbackContext.Provider value={{ toast, confirm }}>
@@ -120,17 +115,8 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
 
       {/* Confirm dialog */}
       {dialog && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in"
-          onClick={() => close(false)}
-        >
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="confirm-title"
-            className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-7 shadow-2xl glass-panel animate-in zoom-in-95"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <ModalShell onClose={() => close(false)} size="sm" zIndex={60} labelledBy="confirm-title">
+          <div role="alertdialog" className="overflow-y-auto overscroll-contain min-h-0 p-5 sm:p-7 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-7">
             <div className="flex items-start gap-4">
               <div
                 className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
@@ -146,17 +132,17 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
                 {dialog.message && <div className="text-sm text-slate-400 mt-2 leading-relaxed">{dialog.message}</div>}
               </div>
             </div>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-7">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-6 sm:mt-7">
               <button
                 onClick={() => close(false)}
-                className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-semibold transition-colors"
+                className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-semibold transition-colors"
               >
                 {dialog.cancelLabel || "Cancel"}
               </button>
               <button
                 ref={confirmBtn}
                 onClick={() => close(true)}
-                className={`px-5 py-3 rounded-xl text-white text-sm font-bold transition-colors ${
+                className={`w-full sm:w-auto px-5 py-3 rounded-xl text-white text-sm font-bold transition-colors ${
                   dialog.danger ? "bg-rose-600 hover:bg-rose-500" : "bg-indigo-600 hover:bg-indigo-500"
                 }`}
               >
@@ -164,7 +150,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
               </button>
             </div>
           </div>
-        </div>
+        </ModalShell>
       )}
     </FeedbackContext.Provider>
   );

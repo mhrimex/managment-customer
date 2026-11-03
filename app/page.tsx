@@ -83,25 +83,25 @@ export default function DashboardPage() {
       </div>
 
       {/* Key Performance Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
         {/* Metric 1: Total Active Clients */}
         <Link
           href="/clients"
-          className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:-translate-y-0.5 hover:shadow-xl hover:border-slate-700 transition-all group glass-panel relative overflow-hidden"
+          className="p-4 sm:p-6 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:-translate-y-0.5 hover:shadow-xl hover:border-slate-700 transition-all group glass-panel relative overflow-hidden"
         >
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider leading-tight">
               Total Clients
             </span>
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <div className="hidden sm:flex w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
               <Building2 size={24} />
             </div>
           </div>
           <div className="mt-4">
-            <div className="text-4xl font-extrabold text-white font-display">
+            <div className="text-3xl sm:text-4xl font-extrabold text-white font-display">
               {metrics ? metrics.total_clients : <Skeleton className="h-10 w-16" />}
             </div>
-            <div className="text-sm text-slate-400 mt-1.5 flex items-center gap-1.5">
+            <div className="text-xs sm:text-sm text-slate-400 mt-1.5 flex flex-wrap items-center gap-x-1.5">
               <span className="text-emerald-400 font-medium">Managed</span>
               <span>client accounts</span>
             </div>
@@ -112,21 +112,21 @@ export default function DashboardPage() {
         {/* Metric 2: Total Deployed Systems */}
         <Link
           href="/deployments"
-          className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:-translate-y-0.5 hover:shadow-xl hover:border-slate-700 transition-all group glass-panel relative overflow-hidden"
+          className="p-4 sm:p-6 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:-translate-y-0.5 hover:shadow-xl hover:border-slate-700 transition-all group glass-panel relative overflow-hidden"
         >
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider leading-tight">
               Deployed Systems
             </span>
-            <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <div className="hidden sm:flex w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
               <Layers size={24} />
             </div>
           </div>
           <div className="mt-4">
-            <div className="text-4xl font-extrabold text-white font-display">
+            <div className="text-3xl sm:text-4xl font-extrabold text-white font-display">
               {metrics ? metrics.total_deployments : <Skeleton className="h-10 w-16" />}
             </div>
-            <div className="text-sm text-slate-400 mt-1.5 flex items-center gap-1.5">
+            <div className="text-xs sm:text-sm text-slate-400 mt-1.5 flex flex-wrap items-center gap-x-1.5">
               <span className="text-indigo-400 font-medium">Active instances</span>
               <span>across all tiers</span>
             </div>
@@ -137,21 +137,21 @@ export default function DashboardPage() {
         {/* Metric 3: Active Hosting Servers */}
         <Link
           href="/servers"
-          className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:-translate-y-0.5 hover:shadow-xl hover:border-slate-700 transition-all group glass-panel relative overflow-hidden"
+          className="p-4 sm:p-6 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:-translate-y-0.5 hover:shadow-xl hover:border-slate-700 transition-all group glass-panel relative overflow-hidden"
         >
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider leading-tight">
               Active Servers
             </span>
-            <div className="w-12 h-12 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <div className="hidden sm:flex w-12 h-12 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center group-hover:scale-110 transition-transform">
               <ServerIcon size={24} />
             </div>
           </div>
           <div className="mt-4">
-            <div className="text-4xl font-extrabold text-white font-display">
+            <div className="text-3xl sm:text-4xl font-extrabold text-white font-display">
               {metrics ? metrics.active_servers : <Skeleton className="h-10 w-16" />}
             </div>
-            <div className="text-sm text-slate-400 mt-1.5 flex items-center gap-1.5">
+            <div className="text-xs sm:text-sm text-slate-400 mt-1.5 flex flex-wrap items-center gap-x-1.5">
               <span className="text-sky-400 font-medium">Cloud & On-Prem</span>
               <span>infrastructure</span>
             </div>
@@ -162,18 +162,18 @@ export default function DashboardPage() {
         {/* Metric 4: Expiring in 30 Days (Critical Alert) */}
         <Link
           href="/deployments?renewal_due=30"
-          className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:-translate-y-0.5 hover:shadow-xl hover:border-amber-500/50 transition-all group glass-panel relative overflow-hidden"
+          className="p-4 sm:p-6 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:-translate-y-0.5 hover:shadow-xl hover:border-amber-500/50 transition-all group glass-panel relative overflow-hidden"
         >
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider leading-tight">
               Renewals In 30 Days
             </span>
-            <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <div className="hidden sm:flex w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
               <AlertTriangle size={24} />
             </div>
           </div>
           <div className="mt-4">
-            <div className="text-4xl font-extrabold text-amber-400 font-display">
+            <div className="text-3xl sm:text-4xl font-extrabold text-amber-400 font-display">
               {metrics ? metrics.expiring_30_days : <Skeleton className="h-10 w-16" />}
             </div>
             <div className="text-sm text-slate-400 mt-1.5 flex items-center justify-between">
@@ -216,7 +216,7 @@ export default function DashboardPage() {
         >
           <Search size={18} />
           <span>Search Everything</span>
-          <kbd className="font-mono text-xs bg-indigo-950/90 text-indigo-200 px-2.5 py-1 rounded-lg border border-indigo-400/40 shadow-inner font-bold">
+          <kbd className="hidden sm:inline font-mono text-xs bg-indigo-950/90 text-indigo-200 px-2.5 py-1 rounded-lg border border-indigo-400/40 shadow-inner font-bold">
             Ctrl + K
           </kbd>
         </button>
@@ -433,17 +433,17 @@ export default function DashboardPage() {
 
               {/* Host and domain details */}
               <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800/80 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400 text-[11px]">Domain:</span>
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <span className="shrink-0 text-slate-400 text-[11px]">Domain:</span>
                   {dep.instance_url ? (
-                    <div className="flex items-center gap-1 text-slate-200 font-mono text-[11px]">
+                    <div className="flex items-center gap-1 min-w-0 text-slate-200 font-mono text-[11px]">
                       <a
                         href={`https://${dep.instance_url}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="hover:underline flex items-center gap-1 text-indigo-300"
+                        className="hover:underline flex items-center gap-1 min-w-0 text-indigo-300"
                       >
-                        {dep.instance_url}
+                        <span className="truncate">{dep.instance_url}</span>
                         <ExternalLink size={10} />
                       </a>
                       <CopyButton text={dep.instance_url} />

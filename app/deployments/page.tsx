@@ -17,6 +17,7 @@ import {
   Search,
   Download,
   RefreshCw,
+  SlidersHorizontal,
   PlusCircle,
   ExternalLink,
   Layers,
@@ -60,6 +61,9 @@ function DeploymentsTableContent() {
   const initialStatus = searchParams.get("status") || "all";
   const initialRenewalDue = searchParams.get("renewal_due") || "all";
   const initialEnvironment = searchParams.get("environment") || "all";
+
+  // Phones: filter dropdowns are folded behind a "Filters" button
+  const [showFilters, setShowFilters] = useState(false);
 
   // Filter State
   const [search, setSearch] = useState(initialSearch);
@@ -503,7 +507,7 @@ function DeploymentsTableContent() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search across Client Name, Phone, Solution Name, Domain/URL, Server IP, or Database..."
+              placeholder="Search client, phone, domain, IP, database..."
               className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-950/80 border border-slate-800 text-white text-xs placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
             {search && (
@@ -517,6 +521,18 @@ function DeploymentsTableContent() {
           </div>
 
           <div className="flex items-center gap-2 w-full md:w-auto">
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              className={`sm:hidden flex-1 px-3 py-2.5 rounded-xl border text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                showFilters || hasActiveFilters
+                  ? "bg-indigo-500/15 text-indigo-300 border-indigo-500/40"
+                  : "bg-slate-800 text-slate-300 border-slate-700/80"
+              }`}
+              aria-expanded={showFilters}
+            >
+              <SlidersHorizontal size={15} />
+              <span>{showFilters ? "Hide filters" : hasActiveFilters ? "Filters (on)" : "Filters"}</span>
+            </button>
             <button
               onClick={() => fetchDeployments()}
               className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700/80 flex items-center gap-1.5 transition-colors"
@@ -539,7 +555,7 @@ function DeploymentsTableContent() {
         </div>
 
         {/* Row 2: Select Filters */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-3 border-t border-slate-800/80">
+        <div className={`${showFilters ? "grid" : "hidden"} sm:grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-3 border-t border-slate-800/80`}>
           <div>
             <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
               Solution Type

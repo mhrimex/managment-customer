@@ -65,8 +65,10 @@ if (-not $node) { $node = "C:\Program Files\nodejs\node.exe" }
 
 Write-Log "Starting server on port $Port"
 $env:NODE_ENV = "production"
-# cmd handles the redirection so the log stays plain UTF-8 text
-cmd /c "`"$node`" node_modules\next\dist\bin\next start -p $Port >> `"$Log`" 2>&1"
+# Absolute path to Next so deploy.ps1 can recognise (and stop) this process by its command line.
+# cmd handles the redirection so the log stays plain UTF-8 text.
+$nextBin = Join-Path $Root "node_modules\next\dist\bin\next"
+cmd /c "`"$node`" `"$nextBin`" start -p $Port >> `"$Log`" 2>&1"
 $code = $LASTEXITCODE
 Write-Log "Server exited with code $code"
 exit $code

@@ -436,3 +436,41 @@ html.light .skeleton {
   }
   .rtable td[colspan] { display: block; text-align: center !important; }
 }
+
+/* =====================================================================
+   PHONES (< 640px)
+   ===================================================================== */
+@media (max-width: 639px) {
+  /* iOS zooms the page when a focused field's text is under 16px — keep fields at 16px */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Page titles: big on desktop, compact on phones */
+  main h1 {
+    font-size: 1.75rem !important;
+    line-height: 1.15 !important;
+    letter-spacing: -0.02em;
+  }
+  main h2 { font-size: 1.2rem; }
+
+  /* Small uppercase "eyebrow" labels above titles: keep them on one line */
+  main .tracking-\[0\.12em\],
+  main .tracking-\[0\.15em\],
+  main .tracking-widest {
+    letter-spacing: 0.06em;
+  }
+}
+
+/* Never let one wide element push the whole page sideways on phones.
+   (clip, unlike hidden, keeps position:sticky working) */
+html, body {
+  overflow-x: clip;
+}
+
+/* Dialog content scrolls inside the sheet without dragging the page behind it */
+.modal-panel {
+  overscroll-behavior: contain;
+}

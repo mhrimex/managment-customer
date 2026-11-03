@@ -3,14 +3,14 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  Layers, 
-  Building2, 
-  Server as ServerIcon, 
-  Boxes, 
-  PlusCircle, 
-  ShieldCheck, 
+import {
+  LayoutDashboard,
+  Layers,
+  Building2,
+  Server as ServerIcon,
+  Boxes,
+  PlusCircle,
+  ShieldCheck,
   HardDrive,
   ChevronRight,
   LogOut,
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { SessionUser } from "@/types";
 import BrandLogo from "@/components/BrandLogo";
+import { ModalCloseButton, useDismissable, whenModalHistorySettled } from "@/components/ModalShell";
 
 interface SidebarProps {
   onOpenNewDeployment?: () => void;
@@ -108,17 +109,28 @@ export default function Sidebar({
     return pathname.startsWith(href);
   };
 
-  const content = (
-    <div className="flex flex-col h-full bg-slate-950 border-r border-slate-800/80 w-[18.5rem] select-none">
+  // In the phone menu: close the menu first, then change page (so the menu's
+  // Back-button history entry is gone before the new page is pushed).
+  const go = (mobile: boolean) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!mobile || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    const href = e.currentTarget.getAttribute("href") || "/";
+    onCloseMobile?.();
+    whenModalHistorySettled().then(() => router.push(href));
+  };
+
+  const renderContent = (mobile: boolean) => (
+    <div className="flex flex-col h-full bg-slate-950 border-r border-slate-800/80 w-[18.5rem] max-w-[85vw] select-none">
       {/* Brand Header */}
-      <div className="px-5 py-6 border-b border-slate-800/80">
+      <div className="px-5 py-5 sm:py-6 border-b border-slate-800/80 flex items-center justify-between gap-2">
         <Link
           href="/"
-          onClick={onCloseMobile}
-          className="block transition-transform hover:scale-[1.02]"
+          onClick={go(mobile)}
+          className="block min-w-0 transition-transform hover:scale-[1.02]"
         >
-          <BrandLogo size={48} />
+          <BrandLogo size={mobile ? 42 : 48} />
         </Link>
+        {mobile && onCloseMobile && <ModalCloseButton onClick={onCloseMobile} />}
       </div>
 
       {/* Quick Action Button */}
@@ -126,8 +138,12 @@ export default function Sidebar({
         <div className="px-4 pt-4 pb-2">
           <button
             onClick={() => {
-              onOpenNewDeployment();
-              if (onCloseMobile) onCloseMobile();
+              if (mobile && onCloseMobile) {
+                onCloseMobile();
+                whenModalHistorySettled().then(() => onOpenNewDeployment());
+              } else {
+                onOpenNewDeployment();
+              }
             }}
             className="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-base shadow-md shadow-indigo-600/25 transition-all hover:shadow-indigo-600/40 active:scale-[0.98]"
           >
@@ -150,7 +166,7 @@ export default function Sidebar({
             <Link
               key={item.name}
               href={item.href}
-              onClick={onCloseMobile}
+              onClick={go(mobile)}
               className={`relative flex items-center justify-between px-3.5 py-3 rounded-xl text-base font-semibold transition-all border ${
                 active
                   ? "bg-indigo-500/10 text-white border-indigo-500/30 shadow-sm"
@@ -180,7 +196,7 @@ export default function Sidebar({
       </nav>
 
       {/* User Session Profile & Logout Footer */}
-      <div className="p-4 border-t border-slate-800/80 bg-slate-950/60 text-xs space-y-3">
+      <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-slate-800/80 bg-slate-950/60 text-xs space-y-3">
         {currentUser ? (
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900/90 border border-slate-800 shadow-sm">
             <div className="flex items-center gap-3 min-w-0 pr-1">
@@ -204,8 +220,9 @@ export default function Sidebar({
 
             <button
               onClick={handleLogout}
-              className="p-2 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors"
+              className="p-2.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors"
               title="Sign Out"
+              aria-label="Sign out"
             >
               <LogOut size={18} />
             </button>
@@ -232,22 +249,33 @@ export default function Sidebar({
   return (
     <>
       <aside className="hidden md:flex shrink-0 h-screen sticky top-0 z-30">
-        {content}
+        {renderContent(false)}
       </aside>
 
-      {isOpenMobile && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm md:hidden flex"
-          onClick={onCloseMobile}
-        >
-          <div 
-            className="h-full animate-in slide-in-from-left duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {content}
-          </div>
-        </div>
+      {isOpenMobile && onCloseMobile && (
+        <MobileDrawer onClose={onCloseMobile}>{renderContent(true)}</MobileDrawer>
       )}
     </>
+  );
+}
+
+/** Slide-in menu for phones: ✕ button, tap outside, Escape and the Back button all close it. */
+function MobileDrawer({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const tryClose = useDismissable(onClose);
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm md:hidden flex"
+      onClick={tryClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
+        className="h-full animate-in slide-in-from-left duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
   );
 }

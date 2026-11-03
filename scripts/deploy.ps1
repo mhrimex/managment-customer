@@ -60,9 +60,15 @@ function Stop-App {
     if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
         try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction Stop } catch { Warn "Could not stop task (run as administrator): $($_.Exception.Message)" }
     }
-    # The task's child node.exe can outlive the task, so stop it directly.
+    # The task's child node.exe can outlive the task, so stop it directly:
+    # any "next start" from this folder, plus whatever node.exe is listening on our port.
+    $port = (Read-Env)["PORT"]; if (-not $port) { $port = "3000" }
+    $portPids = @(Get-NetTCPConnection -LocalPort ([int]$port) -State Listen -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty OwningProcess)
     $procs = Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
-        Where-Object { $_.CommandLine -and $_.CommandLine.Contains($Root) -and $_.CommandLine.Contains("next") }
+        Where-Object { $_.CommandLine -and (
+            ($_.CommandLine.Contains($Root) -and $_.CommandLine.Contains("next")) -or
+            ($portPids -contains $_.ProcessId -and $_.CommandLine.Contains("next")) ) }
     foreach ($p in $procs) {
         try { Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop; Ok "Stopped running app (PID $($p.ProcessId))" }
         catch { Fail "The app is running as another user (PID $($p.ProcessId)). Run this script as administrator." }

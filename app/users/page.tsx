@@ -1,5 +1,6 @@
 "use client";
 
+import ModalShell from "@/components/ModalShell";
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Users,
@@ -447,11 +448,8 @@ export default function UsersPage() {
 
       {/* Delete Confirmation Modal */}
       {userToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div
-            className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden glass-panel p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <ModalShell onClose={() => setUserToDelete(null)} busy={isDeleting} size="sm">
+          <div className="overflow-y-auto overscroll-contain min-h-0 p-5 sm:p-7 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-7 space-y-4">
             <div className="flex items-center gap-3 text-rose-400">
               <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
                 <Trash2 size={20} />
@@ -469,12 +467,12 @@ export default function UsersPage() {
               They will immediately lose access to the management console.
             </p>
 
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 pt-4 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => setUserToDelete(null)}
                 disabled={isDeleting}
-                className="px-4 py-2 rounded-xl border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-medium transition-colors"
+                className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-colors"
               >
                 Cancel
               </button>
@@ -482,13 +480,13 @@ export default function UsersPage() {
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-md shadow-rose-600/30 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                className="w-full sm:w-auto px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold shadow-md shadow-rose-600/30 flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
               >
                 <span>{isDeleting ? "Deleting..." : "Confirm Deletion"}</span>
               </button>
             </div>
           </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* User Create / Edit Modal */}

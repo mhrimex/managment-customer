@@ -14,6 +14,7 @@ import {
   Command
 } from "lucide-react";
 import { AutocompleteSearchResult } from "@/types";
+import ModalShell, { ModalCloseButton, whenModalHistorySettled } from "@/components/ModalShell";
 
 interface GlobalSearchOverlayProps {
   isOpen: boolean;
@@ -70,17 +71,6 @@ export default function GlobalSearchOverlay({
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Handle keyboard shortcut Esc
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
-
   if (!isOpen) return null;
 
   const totalResults =
@@ -89,27 +79,24 @@ export default function GlobalSearchOverlay({
     results.servers.length +
     results.solutions.length;
 
-  const handleSelect = (url: string) => {
-    router.push(url);
+  const handleSelect = async (url: string) => {
     onClose();
+    await whenModalHistorySettled(); // let the dialog's history entry go first
+    router.push(url);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150">
-      <div 
-        className="w-full max-w-3xl bg-slate-900 border-2 border-indigo-500/30 rounded-3xl shadow-2xl overflow-hidden glass-panel flex flex-col max-h-[85vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ModalShell onClose={onClose} size="2xl" position="top" className="sm:border-2 sm:border-indigo-500/30">
         {/* Search Input Bar */}
-        <div className="flex items-center px-5 py-4 border-b border-slate-800 gap-3.5 bg-slate-950/70">
+        <div className="flex items-center px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-800 gap-3 sm:gap-3.5 bg-slate-950/70 shrink-0">
           <Search size={22} className="text-indigo-400 shrink-0" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search clients, deployments, domains, IPs, servers, or solutions..."
-            className="w-full bg-transparent text-white placeholder-slate-400 text-lg font-medium focus:outline-none"
+            placeholder="Search clients, domains, IPs, servers..."
+            className="w-full min-w-0 bg-transparent text-white placeholder-slate-400 text-lg font-medium focus:outline-none"
           />
           {query && (
             <button
@@ -119,13 +106,16 @@ export default function GlobalSearchOverlay({
               <X size={18} />
             </button>
           )}
-          <span className="text-xs font-mono font-bold bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700">
+          <span className="hidden sm:inline text-xs font-mono font-bold bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700">
             ESC
+          </span>
+          <span className="sm:hidden">
+            <ModalCloseButton onClick={onClose} />
           </span>
         </div>
 
         {/* Results Area */}
-        <div className="overflow-y-auto p-5 space-y-5">
+        <div className="overflow-y-auto min-h-0 flex-1 overscroll-contain p-4 sm:p-5 space-y-5">
           {loading && (
             <div className="text-center py-10 text-base font-semibold text-slate-300 flex items-center justify-center gap-3">
               <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -315,7 +305,7 @@ export default function GlobalSearchOverlay({
         </div>
 
         {/* Footer shortcuts */}
-        <div className="px-5 py-3 bg-slate-950/80 border-t border-slate-800 text-xs text-slate-300 flex items-center justify-between">
+        <div className="hidden sm:flex px-5 py-3 bg-slate-950/80 border-t border-slate-800 text-xs text-slate-300 items-center justify-between shrink-0">
           <div className="flex items-center gap-3.5">
             <span className="flex items-center gap-1.5">
               <kbd className="px-2 py-0.5 rounded bg-slate-800 text-white font-bold border border-slate-700 font-mono">Enter</kbd>
@@ -328,7 +318,6 @@ export default function GlobalSearchOverlay({
           </div>
           <span className="font-semibold text-slate-400">Reflection Solutions Engine</span>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

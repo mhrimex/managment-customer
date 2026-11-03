@@ -1,5 +1,6 @@
 "use client";
 
+import ModalShell from "@/components/ModalShell";
 import React, { useState, useEffect, useRef } from "react";
 import {
   Database,
@@ -435,8 +436,15 @@ export default function MaintenancePage() {
 
       {/* Confirmation Modal Safeguard */}
       {confirmModalMode && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+        <ModalShell
+          onClose={() => {
+            setConfirmModalMode(null);
+            setConfirmText("");
+          }}
+          busy={clearing}
+          size="sm"
+        >
+          <div className="overflow-y-auto overscroll-contain min-h-0 p-5 sm:p-7 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-7 space-y-4">
             <div className="flex items-center gap-3 text-rose-400">
               <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
                 <AlertTriangle size={20} />
@@ -461,25 +469,25 @@ export default function MaintenancePage() {
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
                 placeholder="CONFIRM"
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-rose-500"
+                className="w-full px-3 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-sm focus:outline-none focus:border-rose-500"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 pt-2">
               <button
                 onClick={() => {
                   setConfirmModalMode(null);
                   setConfirmText("");
                 }}
                 disabled={clearing}
-                className="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white transition-colors"
+                className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleExecuteClear}
                 disabled={confirmText.trim().toUpperCase() !== "CONFIRM" || clearing}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all shadow-md ${
+                className={`w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-bold text-white transition-all shadow-md ${
                   confirmModalMode === "reset_seed"
                     ? "bg-amber-600 hover:bg-amber-500 disabled:opacity-40"
                     : "bg-rose-600 hover:bg-rose-500 disabled:opacity-40"
@@ -489,7 +497,7 @@ export default function MaintenancePage() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

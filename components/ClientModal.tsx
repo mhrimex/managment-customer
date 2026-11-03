@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { X, Save, AlertCircle, Building2, ImagePlus, Trash2 } from "lucide-react";
+import ModalShell, { ModalCloseButton } from "@/components/ModalShell";
+import { Save, AlertCircle, Building2, ImagePlus, Trash2 } from "lucide-react";
 import { Client } from "@/types";
 import CompanyAvatar from "@/components/CompanyAvatar";
 import { useFeedback } from "@/components/Feedback";
@@ -98,15 +99,6 @@ export default function ClientModal({
     setError(null);
   }, [clientToEdit, isOpen]);
 
-  // Escape closes the dialog
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !loading) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, loading, onClose]);
 
   if (!isOpen) return null;
 
@@ -184,19 +176,9 @@ export default function ClientModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150"
-      onClick={() => !loading && onClose()}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="client-modal-title"
-        className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden glass-panel flex flex-col max-h-[92vh] animate-in zoom-in-95"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ModalShell onClose={onClose} busy={loading} size="xl" labelledBy="client-modal-title">
         {/* Header */}
-        <div className="flex items-center justify-between px-7 py-5 border-b border-slate-800">
+        <div className="flex items-center justify-between gap-3 px-5 sm:px-7 py-3.5 sm:py-5 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3.5">
             <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
               <Building2 size={22} />
@@ -208,17 +190,11 @@ export default function ClientModal({
               <p className="text-sm text-slate-400">Logo, contacts and SLA notes</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-            aria-label="Close"
-          >
-            <X size={22} />
-          </button>
+          <ModalCloseButton onClick={onClose} disabled={loading} />
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-7 space-y-5 flex-1">
+        <form onSubmit={handleSubmit} className="overflow-y-auto overscroll-contain min-h-0 flex-1 px-5 sm:px-7 pt-5 sm:pt-6 space-y-5">
           {error && (
             <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-center gap-2.5">
               <AlertCircle size={18} className="shrink-0" />
@@ -366,26 +342,25 @@ export default function ClientModal({
           </div>
 
           {/* Action buttons */}
-          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 pt-5 border-t border-slate-800">
+          <div className="sticky bottom-0 z-10 -mx-5 sm:-mx-7 px-5 sm:px-7 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6 bg-slate-900 border-t border-slate-800 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-colors"
+              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50"
             >
               <Save size={18} />
               <span>{loading ? "Saving..." : clientToEdit ? "Update Client" : "Create Client"}</span>
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
