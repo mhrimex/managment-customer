@@ -7,14 +7,36 @@
  * Reads DATABASE_URL from .env (passed by npm via --env-file=.env).
  * Safe to run again: every statement checks before it creates/inserts.
  */
-const sql = require("mssql");
 const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
 
+// Works both in the source project (node_modules/mssql) and in the deployment
+// package (database/init-db.js next to app/node_modules/mssql).
+function loadMssql() {
+  try {
+    return require("mssql");
+  } catch {
+    return require(path.join(ROOT, "app", "node_modules", "mssql"));
+  }
+}
+const sql = loadMssql();
+
+// Source project: schema.sql / seed-sample-data.sql at the root.
+// Deployment package: full-database.sql / sample-data.sql next to this script.
+function resolveSqlFile(projectName, packageName) {
+  const inProject = path.join(ROOT, projectName);
+  if (fs.existsSync(inProject)) return inProject;
+  return path.join(__dirname, packageName);
+}
+const FILES = {
+  schema: resolveSqlFile("schema.sql", "full-database.sql"),
+  sample: resolveSqlFile("seed-sample-data.sql", "sample-data.sql"),
+};
+
 function loadBatches(file) {
-  let text = fs.readFileSync(path.join(ROOT, file), "utf8");
+  let text = fs.readFileSync(file, "utf8");
   // CREATE DATABASE / USE are only for SSMS; here we connect to the right database directly.
   text = text.replace(/--\s*@@SSMS-ONLY-BEGIN[\s\S]*?--\s*@@SSMS-ONLY-END/g, "");
   return text
@@ -48,8 +70,9 @@ async function ensureDatabase(config) {
   }
 }
 
-async function runFile(pool, file) {
-  const batches = loadBatches(file);
+async function runFile(pool, filePath) {
+  const file = path.basename(filePath);
+  const batches = loadBatches(filePath);
   console.log(`Running ${file} (${batches.length} batches)...`);
   for (let i = 0; i < batches.length; i++) {
     try {
@@ -81,8 +104,8 @@ async function main() {
   let pool;
   try {
     pool = await new sql.ConnectionPool(config).connect();
-    await runFile(pool, "schema.sql");
-    if (withSample) await runFile(pool, "seed-sample-data.sql");
+    await runFile(pool, FILES.schema);
+    if (withSample) await runFile(pool, FILES.sample);
 
     const counts = await pool.request().query(`
       SELECT (SELECT COUNT(*) FROM clients) AS clients, (SELECT COUNT(*) FROM solutions) AS solutions,

@@ -2,6 +2,37 @@
 
 How to install the Client Management Portal on a Windows PC or server, keep it running, update it, and change its settings.
 
+There are two ways to deploy:
+
+| | Copy-and-run package (recommended for hosting) | From source (this folder) |
+|---|---|---|
+| What you copy | One folder, compiled, **no source code** | The whole project |
+| Needs on the host | Only SQL Server (Node.js is included) | Node.js + npm + SQL Server |
+| Build it with | `npm run package` → `..\deployment` | `scripts\deploy.ps1` (section 3) |
+| You edit | `settings.env` | `.env` |
+
+## 0. Copy-and-run package
+
+On the development PC:
+
+```
+npm run package                     (output: ..\deployment, next to this project)
+npm run package -- "D:\out\portal"  (or any other folder)
+```
+
+Copy the resulting folder to the host and follow its **README.txt**:
+1. Edit `settings.env` (DATABASE_URL, PORT).
+2. Run `setup-database.cmd`, or run `database\full-database.sql` in SSMS.
+3. Run `install-service.cmd` as administrator. The app then starts with Windows, restarts itself after a crash, and the firewall port is opened.
+
+`database\full-database.sql` creates everything in one go: the database, tables, indexes, triggers, the `vw_deployment_details` view, the stored procedures (`sp_get_dashboard_stats`, `sp_get_upcoming_renewals`, `sp_search`, `sp_get_client_summary`, `sp_get_server_usage`, `sp_purge_old_audit_logs`) and the default users. The web app doesn't call the procedures; they're there for reports and maintenance jobs.
+
+Re-running `npm run package` updates the app inside an existing package folder. It never overwrites that folder's `settings.env`.
+
+The company name (`NEXT_PUBLIC_COMPANY_NAME`) is compiled into the package. To change it, set it in `.env` here and re-run `npm run package`. To change the logo, replace `app\public\logo.svg` in the package; no rebuild is needed.
+
+The rest of this guide covers deploying **from source**.
+
 ---
 
 ## 1. Requirements

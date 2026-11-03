@@ -9,6 +9,9 @@
 --   Option B:  open this file in SQL Server Management Studio and press F5.
 --       Change the database name below if yours is different.
 --
+-- Creates: database, 8 tables, indexes, updated_at triggers, 1 view,
+-- 6 stored procedures, 2 default staff accounts.
+--
 -- Demo data (sample clients/servers/deployments) is NOT in this file.
 -- It is in seed-sample-data.sql  ->  npm run db:seed-sample
 -- =====================================================================
@@ -274,7 +277,154 @@ END;
 GO
 
 -- ---------------------------------------------------------------------
--- 5. DEFAULT STAFF ACCOUNTS
+-- 5. VIEWS & STORED PROCEDURES
+--    For reports, Excel/Power BI, and maintenance jobs. The web app does
+--    not depend on them; it queries the tables directly.
+-- ---------------------------------------------------------------------
+
+-- One row per deployment with client, solution and server names
+CREATE OR ALTER VIEW vw_deployment_details AS
+SELECT
+    d.id                      AS deployment_id,
+    c.id                      AS client_id,
+    c.company_name,
+    c.contact_person,
+    c.email                   AS client_email,
+    c.phone_primary,
+    s.name                    AS solution_name,
+    s.category                AS solution_category,
+    sv.server_name,
+    sv.provider               AS server_provider,
+    sv.ip_address             AS server_ip,
+    d.instance_url,
+    d.environment,
+    d.deployment_status,
+    d.database_name,
+    d.version_installed,
+    d.license_type,
+    d.renewal_date,
+    DATEDIFF(day, CAST(SYSUTCDATETIME() AS DATE), d.renewal_date) AS days_to_renewal,
+    d.support_contract_status,
+    d.created_at,
+    d.updated_at
+FROM client_deployments d
+JOIN clients   c  ON c.id  = d.client_id
+JOIN solutions s  ON s.id  = d.solution_id
+LEFT JOIN servers sv ON sv.id = d.server_id;
+GO
+
+-- Headline numbers (same as the dashboard cards)
+CREATE OR ALTER PROCEDURE sp_get_dashboard_stats
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @today DATE = CAST(SYSUTCDATETIME() AS DATE);
+    SELECT
+        (SELECT COUNT(*) FROM clients)                                                       AS total_clients,
+        (SELECT COUNT(*) FROM client_deployments)                                            AS total_deployments,
+        (SELECT COUNT(*) FROM client_deployments WHERE deployment_status = 'ACTIVE')         AS active_deployments,
+        (SELECT COUNT(*) FROM servers)                                                       AS total_servers,
+        (SELECT COUNT(*) FROM solutions)                                                     AS total_solutions,
+        (SELECT COUNT(*) FROM client_deployments
+          WHERE renewal_date BETWEEN @today AND DATEADD(day, 30, @today))                   AS renewals_next_30_days,
+        (SELECT COUNT(*) FROM client_deployments WHERE renewal_date < @today)                AS expired_licenses;
+END;
+GO
+
+-- Licenses renewing within @days (default 30). @include_expired = 1 also lists overdue ones.
+CREATE OR ALTER PROCEDURE sp_get_upcoming_renewals
+    @days            INT = 30,
+    @include_expired BIT = 1
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @today DATE = CAST(SYSUTCDATETIME() AS DATE);
+    SELECT company_name, contact_person, client_email, phone_primary,
+           solution_name, instance_url, environment, license_type,
+           renewal_date, days_to_renewal, support_contract_status
+    FROM vw_deployment_details
+    WHERE renewal_date IS NOT NULL
+      AND renewal_date <= DATEADD(day, @days, @today)
+      AND (@include_expired = 1 OR renewal_date >= @today)
+    ORDER BY renewal_date ASC;
+END;
+GO
+
+-- Find clients / deployments by name, contact, email, phone, domain, IP or database name
+CREATE OR ALTER PROCEDURE sp_search
+    @term NVARCHAR(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @like NVARCHAR(210) = N'%' + LTRIM(RTRIM(@term)) + N'%';
+
+    SELECT 'CLIENT' AS kind, c.id, c.company_name AS title,
+           CONCAT(c.contact_person, N' ', c.email, N' ', c.phone_primary) AS details
+    FROM clients c
+    WHERE c.company_name LIKE @like OR c.contact_person LIKE @like OR c.email LIKE @like
+       OR c.phone_primary LIKE @like OR c.phone_secondary LIKE @like
+    UNION ALL
+    SELECT 'DEPLOYMENT', v.deployment_id, CONCAT(v.company_name, N' - ', v.solution_name),
+           CONCAT(v.instance_url, N' ', v.server_ip, N' ', v.database_name)
+    FROM vw_deployment_details v
+    WHERE v.instance_url LIKE @like OR v.server_ip LIKE @like OR v.database_name LIKE @like
+       OR v.server_name LIKE @like OR v.solution_name LIKE @like
+    ORDER BY kind, title;
+END;
+GO
+
+-- Everything about one client: details, then its deployments
+CREATE OR ALTER PROCEDURE sp_get_client_summary
+    @client_id UNIQUEIDENTIFIER
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT id, company_name, contact_person, email, phone_primary, phone_secondary, address, notes, created_at
+    FROM clients WHERE id = @client_id;
+
+    SELECT solution_name, solution_category, server_name, server_ip, instance_url, environment,
+           deployment_status, database_name, version_installed, license_type, renewal_date,
+           days_to_renewal, support_contract_status
+    FROM vw_deployment_details
+    WHERE client_id = @client_id
+    ORDER BY solution_name;
+END;
+GO
+
+-- Deployments per server (capacity overview)
+CREATE OR ALTER PROCEDURE sp_get_server_usage
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT sv.server_name, sv.provider, sv.ip_address, sv.server_type,
+           COUNT(d.id)                                                  AS deployments,
+           SUM(CASE WHEN d.deployment_status = 'ACTIVE' THEN 1 ELSE 0 END) AS active_deployments,
+           COUNT(DISTINCT d.client_id)                                  AS clients
+    FROM servers sv
+    LEFT JOIN client_deployments d ON d.server_id = sv.id
+    GROUP BY sv.id, sv.server_name, sv.provider, sv.ip_address, sv.server_type
+    ORDER BY deployments DESC, sv.server_name;
+END;
+GO
+
+-- Housekeeping: delete audit-log entries older than @keep_days (default 365). Returns rows deleted.
+CREATE OR ALTER PROCEDURE sp_purge_old_audit_logs
+    @keep_days INT = 365
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF @keep_days < 30
+    BEGIN
+        RAISERROR('keep_days must be at least 30', 16, 1);
+        RETURN;
+    END;
+    DELETE FROM audit_logs WHERE created_at < DATEADD(day, -@keep_days, SYSUTCDATETIME());
+    SELECT @@ROWCOUNT AS deleted_rows;
+END;
+GO
+
+-- ---------------------------------------------------------------------
+-- 6. DEFAULT STAFF ACCOUNTS
 --    admin@agency.com / Admin123!      (ADMIN)
 --    support@agency.com / Support123!  (SUPPORT_ENGINEER)
 --    CHANGE BOTH PASSWORDS after first login: Users page -> edit user.
