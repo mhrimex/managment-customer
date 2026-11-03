@@ -15,11 +15,15 @@ import {
   ChevronRight,
   LogOut,
   User as UserIcon,
-  Users
+  Users,
+  Sun,
+  Moon,
+  MonitorSmartphone,
 } from "lucide-react";
 import { SessionUser } from "@/types";
 import BrandLogo from "@/components/BrandLogo";
 import { ModalCloseButton, useDismissable, whenModalHistorySettled } from "@/components/ModalShell";
+import { useTheme, ThemePref } from "@/components/useTheme";
 
 interface SidebarProps {
   onOpenNewDeployment?: () => void;
@@ -197,6 +201,7 @@ export default function Sidebar({
 
       {/* User Session Profile & Logout Footer */}
       <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-slate-800/80 bg-slate-950/60 text-xs space-y-3">
+        <ThemePicker />
         {currentUser ? (
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900/90 border border-slate-800 shadow-sm">
             <div className="flex items-center gap-3 min-w-0 pr-1">
@@ -276,6 +281,39 @@ function MobileDrawer({ onClose, children }: { onClose: () => void; children: Re
       >
         {children}
       </div>
+    </div>
+  );
+}
+
+/** Light / Dark / Auto (follow the phone or PC). Saved per browser. */
+function ThemePicker() {
+  const { pref, setPref } = useTheme();
+  const options: { value: ThemePref; label: string; Icon: typeof Sun }[] = [
+    { value: "light", label: "Light", Icon: Sun },
+    { value: "dark", label: "Dark", Icon: Moon },
+    { value: "system", label: "Auto", Icon: MonitorSmartphone },
+  ];
+  return (
+    <div role="radiogroup" aria-label="Theme" className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-900 border border-slate-800">
+      {options.map(({ value, label, Icon }) => {
+        const active = pref === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => setPref(value)}
+            title={value === "system" ? "Follow the device setting" : `${label} theme`}
+            className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              active ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white hover:bg-slate-800"
+            }`}
+          >
+            <Icon size={15} />
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }

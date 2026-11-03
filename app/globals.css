@@ -11,7 +11,8 @@
 html.light {
   --background: #f8fafc;
   --foreground: #0f172a;
-  color-scheme: light;
+  /* "only": the browser must not force its own dark mode on the light theme */
+  color-scheme: light only;
 }
 
 html {

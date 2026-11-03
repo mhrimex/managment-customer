@@ -9,7 +9,7 @@ import DeploymentModal from "@/components/DeploymentModal";
 import ClientModal from "@/components/ClientModal";
 import ServerModal from "@/components/ServerModal";
 import { FeedbackProvider } from "@/components/Feedback";
-import { ClientDeployment, Client } from "@/types";
+import { ClientDeployment, Client, Server } from "@/types";
 
 interface AppContextType {
   openSearch: () => void;
@@ -18,6 +18,7 @@ interface AppContextType {
   openNewClient: () => void;
   openEditClient: (client: Client) => void;
   openNewServer: () => void;
+  openEditServer: (server: Server) => void;
   refreshTrigger: number;
   triggerRefresh: () => void;
 }
@@ -53,6 +54,7 @@ export default function AppLayoutClient({
 
   // Server modal
   const [isServerModalOpen, setIsServerModalOpen] = useState(false);
+  const [serverToEdit, setServerToEdit] = useState<Server | null>(null);
 
   // Global refresh trigger for pages to listen to
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -95,6 +97,12 @@ export default function AppLayoutClient({
   };
 
   const openNewServer = () => {
+    setServerToEdit(null);
+    setIsServerModalOpen(true);
+  };
+
+  const openEditServer = (server: Server) => {
+    setServerToEdit(server);
     setIsServerModalOpen(true);
   };
 
@@ -113,6 +121,7 @@ export default function AppLayoutClient({
         openNewClient,
         openEditClient,
         openNewServer,
+        openEditServer,
         refreshTrigger,
         triggerRefresh,
       }}
@@ -164,6 +173,7 @@ export default function AppLayoutClient({
         isOpen={isServerModalOpen}
         onClose={() => setIsServerModalOpen(false)}
         onSuccess={() => triggerRefresh()}
+        serverToEdit={serverToEdit}
       />
     </AppContext.Provider>
     </FeedbackProvider>

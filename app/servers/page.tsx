@@ -12,15 +12,41 @@ import {
   ShieldCheck,
   Cpu,
   RefreshCw,
-  HardDrive
+  HardDrive,
+  Edit3,
+  Trash2,
 } from "lucide-react";
+import { useFeedback } from "@/components/Feedback";
 import { Server } from "@/types";
 import { useApp } from "@/components/AppLayoutClient";
 import CopyButton from "@/components/CopyButton";
 import { SkeletonCards } from "@/components/Skeleton";
 
 export default function ServersPage() {
-  const { openNewServer, refreshTrigger } = useApp();
+  const { openNewServer, openEditServer, refreshTrigger, triggerRefresh } = useApp();
+  const { toast, confirm } = useFeedback();
+
+  const handleDelete = async (server: Server) => {
+    const hosted = server.hosted_deployments?.length || 0;
+    const ok = await confirm({
+      title: `Delete ${server.server_name}?`,
+      message: hosted
+        ? `${hosted} deployment(s) are hosted on this server. They will be kept, but will show "no server" until you assign another one.`
+        : "The server will be removed from the infrastructure list.",
+      confirmLabel: "Delete server",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/servers/${server.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to delete server");
+      toast(`${server.server_name} was deleted.`);
+      triggerRefresh();
+    } catch (err: any) {
+      toast(err.message || "Failed to delete server", "error");
+    }
+  };
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -101,7 +127,7 @@ export default function ServersPage() {
               <div>
                 {/* Title & Type */}
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0">
                       <ServerIcon size={20} />
                     </div>
@@ -115,13 +141,31 @@ export default function ServersPage() {
                     </div>
                   </div>
 
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-medium border ${getServerTypeBadge(
-                      server.server_type
-                    )}`}
-                  >
-                    {server.server_type.replace("_", " ")}
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-medium border ${getServerTypeBadge(
+                        server.server_type
+                      )}`}
+                    >
+                      {server.server_type.replace("_", " ")}
+                    </span>
+                    <button
+                      onClick={() => openEditServer(server)}
+                      className="w-10 h-10 inline-flex items-center justify-center text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                      title="Edit server"
+                      aria-label={`Edit ${server.server_name}`}
+                    >
+                      <Edit3 size={17} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(server)}
+                      className="w-10 h-10 inline-flex items-center justify-center text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors"
+                      title="Delete server"
+                      aria-label={`Delete ${server.server_name}`}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Technical specs: IP and Login notes */}

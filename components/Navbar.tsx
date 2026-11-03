@@ -2,6 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { useDismissable, whenModalHistorySettled } from "@/components/ModalShell";
+import { useTheme } from "@/components/useTheme";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -45,7 +46,7 @@ export default function Navbar({
     setShowAlertsDropdown(false);
     whenModalHistorySettled().then(() => router.push(href));
   };
-  const [isDark, setIsDark] = useState(true);
+  const { isDark, toggle: toggleTheme } = useTheme();
   const [dispatching, setDispatching] = useState(false);
   const [dispatchMessage, setDispatchMessage] = useState<string | null>(null);
 
@@ -59,42 +60,6 @@ export default function Navbar({
       })
       .catch((err) => console.error("Error fetching stats:", err));
   }, []);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("reflection_theme");
-      if (saved === "light") {
-        document.documentElement.classList.remove("dark");
-        document.documentElement.classList.add("light");
-        setIsDark(false);
-      } else {
-        document.documentElement.classList.add("dark");
-        document.documentElement.classList.remove("light");
-        setIsDark(true);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const isCurrentlyDark = document.documentElement.classList.contains("dark");
-    if (isCurrentlyDark) {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.classList.add("light");
-      try {
-        localStorage.setItem("reflection_theme", "light");
-      } catch {}
-      setIsDark(false);
-    } else {
-      document.documentElement.classList.remove("light");
-      document.documentElement.classList.add("dark");
-      try {
-        localStorage.setItem("reflection_theme", "dark");
-      } catch {}
-      setIsDark(true);
-    }
-  };
 
   const handleTriggerDispatch = async () => {
     setDispatching(true);

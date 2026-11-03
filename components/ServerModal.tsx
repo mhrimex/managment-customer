@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import ModalShell, { ModalCloseButton } from "@/components/ModalShell";
 import { Save, AlertCircle, Server as ServerIcon } from "lucide-react";
 import { Server, ServerType } from "@/types";
@@ -9,12 +9,15 @@ interface ServerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (server?: Server) => void;
+  /** set to edit an existing server; null/undefined = add a new one */
+  serverToEdit?: Server | null;
 }
 
 export default function ServerModal({
   isOpen,
   onClose,
   onSuccess,
+  serverToEdit,
 }: ServerModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +27,18 @@ export default function ServerModal({
   const [ipAddress, setIpAddress] = useState("");
   const [serverType, setServerType] = useState<ServerType>("CLOUD_VPS");
   const [loginNotes, setLoginNotes] = useState("");
+  const isEditing = !!serverToEdit;
+
+  // Fill the form when it opens (edit) or clear it (add)
+  useEffect(() => {
+    if (!isOpen) return;
+    setError(null);
+    setServerName(serverToEdit?.server_name || "");
+    setProvider(serverToEdit?.provider || "AWS");
+    setIpAddress(serverToEdit?.ip_address || "");
+    setServerType(serverToEdit?.server_type || "CLOUD_VPS");
+    setLoginNotes(serverToEdit?.login_notes || "");
+  }, [isOpen, serverToEdit]);
 
   if (!isOpen) return null;
 
@@ -46,21 +61,21 @@ export default function ServerModal({
     };
 
     try {
-      const res = await fetch("/api/servers", {
-        method: "POST",
+      const res = await fetch(isEditing ? `/api/servers/${serverToEdit!.id}` : "/api/servers", {
+        method: isEditing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to create server");
+        throw new Error(data.error || "Failed to save server");
       }
 
       onSuccess(data.data);
       onClose();
     } catch (err: any) {
-      setError(err.message || "Failed to create server");
+      setError(err.message || "Failed to save server");
     } finally {
       setLoading(false);
     }
@@ -74,8 +89,8 @@ export default function ServerModal({
               <ServerIcon size={18} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Add Infrastructure Server</h3>
-              <p className="text-xs text-slate-400">Register cloud host or on-premise hardware node</p>
+              <h3 className="text-base font-bold text-white">{isEditing ? "Edit Server" : "Add Infrastructure Server"}</h3>
+              <p className="text-xs text-slate-400">{isEditing ? "Change name, provider, IP, type or access notes" : "Register cloud host or on-premise hardware node"}</p>
             </div>
           </div>
           <ModalCloseButton onClick={onClose} disabled={loading} />
@@ -177,7 +192,7 @@ export default function ServerModal({
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold shadow-md shadow-sky-600/20 transition-all disabled:opacity-50"
             >
               <Save size={18} />
-              <span>{loading ? "Registering..." : "Add Server"}</span>
+              <span>{loading ? "Saving..." : isEditing ? "Save Changes" : "Add Server"}</span>
             </button>
           </div>
         </form>

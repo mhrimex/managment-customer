@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import AppLayoutClient from "@/components/AppLayoutClient";
@@ -30,6 +30,12 @@ export const metadata: Metadata = {
     "Production-grade software agency management portal for clients, deployed solutions, infrastructure servers, domains, licenses, and support agreements.",
 };
 
+// "dark light" tells phone browsers (Samsung Internet dark mode, Chrome "darken
+// websites") that the app has its own themes, so they don't force-darken it.
+export const viewport: Viewport = {
+  colorScheme: "dark light",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -46,14 +52,19 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                const savedTheme = localStorage.getItem('reflection_theme');
-                if (savedTheme === 'light') {
-                  document.documentElement.classList.remove('dark');
-                  document.documentElement.classList.add('light');
-                } else {
-                  document.documentElement.classList.add('dark');
-                  document.documentElement.classList.remove('light');
-                }
+                // Same rules as components/useTheme.ts: saved choice, default dark,
+                // "system" follows the device.
+                var pref = localStorage.getItem('reflection_theme') || 'dark';
+                var mode = pref === 'system'
+                  ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                  : (pref === 'light' ? 'light' : 'dark');
+                var root = document.documentElement;
+                root.classList.toggle('dark', mode === 'dark');
+                root.classList.toggle('light', mode === 'light');
+                var meta = document.createElement('meta');
+                meta.name = 'theme-color';
+                meta.content = mode === 'dark' ? '#090e1a' : '#f8fafc';
+                document.head.appendChild(meta);
               } catch (e) {}
             `,
           }}

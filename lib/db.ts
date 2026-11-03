@@ -581,12 +581,88 @@ export async function createServer(data: Partial<Server>): Promise<Server> {
       );
       const rows = await query<Server>("SELECT * FROM servers WHERE id = @id", { id: newServer.id });
       return rows[0];
-    } catch { /* fallback */ }
+    } catch (err) {
+      // Don't fall back to memory: the server would vanish on restart.
+      console.warn("[DB] SQL Server insert server failed", err);
+      throw err;
+    }
   }
 
   globalStore._db_servers = [...(globalStore._db_servers || []), newServer];
   return newServer;
 }
+
+export const SERVER_TYPES = ["CLOUD_VPS", "DEDICATED", "SHARED", "ON_PREMISE"] as const;
+
+export async function updateServer(id: string, data: Partial<Server>): Promise<Server | null> {
+  if (await dbAvailable()) {
+    const changed = await execute(
+      `UPDATE servers SET
+         server_name = COALESCE(@server_name, server_name),
+         provider    = COALESCE(@provider, provider),
+         ip_address  = COALESCE(@ip_address, ip_address),
+         server_type = COALESCE(@server_type, server_type),
+         login_notes = CASE WHEN @notes_set = 1 THEN @login_notes ELSE login_notes END,
+         updated_at  = SYSUTCDATETIME()
+       WHERE id = @id`,
+      {
+        id,
+        server_name: data.server_name ?? null,
+        provider: data.provider ?? null,
+        ip_address: data.ip_address ?? null,
+        server_type: data.server_type ?? null,
+        notes_set: data.login_notes !== undefined ? 1 : 0,
+        login_notes: data.login_notes ?? null,
+      }
+    );
+    if (!changed) return null;
+    const rows = await query<Server>("SELECT * FROM servers WHERE id = @id", { id });
+    return rows[0] || null;
+  }
+
+  const list = globalStore._db_servers || [];
+  const i = list.findIndex((x) => sameId(x.id, id));
+  if (i < 0) return null;
+  const updated: Server = {
+    ...list[i],
+    ...Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)),
+    id: list[i].id,
+    updated_at: new Date().toISOString(),
+  };
+  list[i] = updated;
+  return updated;
+}
+
+/**
+ * Delete a server. Deployments hosted on it are kept and become
+ * "no server assigned" (server_id = NULL). Returns how many were unassigned.
+ */
+export async function deleteServer(id: string): Promise<{ deleted: boolean; unassigned: number }> {
+  if (await dbAvailable()) {
+    let unassigned = 0;
+    let deleted = false;
+    await inTransaction(async (run) => {
+      const r1 = await run("UPDATE client_deployments SET server_id = NULL, updated_at = SYSUTCDATETIME() WHERE server_id = @id", { id });
+      unassigned = r1.rowsAffected?.[0] || 0;
+      const r2 = await run("DELETE FROM servers WHERE id = @id", { id });
+      deleted = (r2.rowsAffected?.[0] || 0) > 0;
+      if (!deleted) throw new NotFoundError();
+    }).catch((e) => {
+      if (!(e instanceof NotFoundError)) throw e;
+    });
+    return { deleted, unassigned: deleted ? unassigned : 0 };
+  }
+
+  const before = (globalStore._db_servers || []).length;
+  globalStore._db_servers = (globalStore._db_servers || []).filter((x) => !sameId(x.id, id));
+  let unassigned = 0;
+  for (const d of globalStore._db_deployments || []) {
+    if (d.server_id && sameId(d.server_id, id)) { d.server_id = null; unassigned++; }
+  }
+  return { deleted: (globalStore._db_servers || []).length < before, unassigned };
+}
+
+class NotFoundError extends Error {}
 
 // =====================================================================
 // Deployments
@@ -987,7 +1063,7 @@ export async function searchAll(q: string): Promise<AutocompleteSearchResult> {
 // Backup & Maintenance
 // =====================================================================
 
-type TxRun = (sqlText: string, params?: Record<string, any>) => Promise<void>;
+type TxRun = (sqlText: string, params?: Record<string, any>) => Promise<sql.IResult<any>>;
 
 /** Run several statements atomically: either all succeed or none are applied. */
 async function inTransaction(work: (run: TxRun) => Promise<void>): Promise<void> {
@@ -999,7 +1075,7 @@ async function inTransaction(work: (run: TxRun) => Promise<void>): Promise<void>
     await work(async (sqlText, params = {}) => {
       const request = new sql.Request(tx);
       for (const [key, value] of Object.entries(params)) request.input(key, value);
-      await request.query(sqlText);
+      return request.query(sqlText);
     });
     await tx.commit();
   } catch (err) {

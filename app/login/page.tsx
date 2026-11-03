@@ -14,6 +14,8 @@ import {
   EyeOff
 } from "lucide-react";
 import { COMPANY_LOGO, COMPANY_NAME } from "@/components/BrandLogo";
+import { useTheme } from "@/components/useTheme";
+import { Sun as SunIcon, Moon as MoonIcon } from "lucide-react";
 
 // Demo role buttons are a development convenience only; never shown in production builds
 const SHOW_DEMO_LOGINS =
@@ -65,6 +67,7 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden select-none">
+      <ThemeButton />
       {/* Background glow effects */}
       <div className="absolute top-1/4 -left-32 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-sky-600/15 rounded-full blur-3xl pointer-events-none" />
@@ -213,5 +216,20 @@ export default function LoginPage() {
     <Suspense fallback={<div className="text-sm text-slate-400 py-10 text-center">Loading authentication...</div>}>
       <LoginForm />
     </Suspense>
+  );
+}
+
+function ThemeButton() {
+  const { isDark, toggle } = useTheme();
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      title={isDark ? "Light mode" : "Dark mode"}
+      className="absolute top-4 right-4 z-10 w-11 h-11 inline-flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800 transition-colors"
+    >
+      {isDark ? <SunIcon size={20} /> : <MoonIcon size={20} />}
+    </button>
   );
 }

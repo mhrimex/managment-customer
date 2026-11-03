@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServers, createServer } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
+import { logAuditEvent } from "@/lib/audit";
+import { validateServerBody } from "@/lib/server-validation";
 
 export async function GET() {
   try {
@@ -20,23 +23,25 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-
-    if (!body.server_name || !body.ip_address || !body.provider) {
-      return NextResponse.json(
-        { success: false, error: "server_name, ip_address, and provider are required" },
-        { status: 400 }
-      );
+    const user = await getCurrentUser();
+    const { data, error } = validateServerBody(await request.json(), false);
+    if (error || !data) {
+      return NextResponse.json({ success: false, error }, { status: 400 });
     }
 
-    const server = await createServer(body);
+    const server = await createServer(data);
+
+    await logAuditEvent({
+      user_id: user?.id,
+      user_email: user?.email || "unknown",
+      action: "CREATE_SERVER",
+      resource_type: "SERVER",
+      resource_id: server.id,
+      details: `Added server "${server.server_name}" (${server.ip_address})`,
+    }).catch(() => {});
 
     return NextResponse.json(
-      {
-        success: true,
-        message: "Server created successfully",
-        data: server,
-      },
+      { success: true, message: "Server created successfully", data: server },
       { status: 201 }
     );
   } catch (error) {
