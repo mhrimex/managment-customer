@@ -4,14 +4,14 @@ How to install the Client Management Portal on a Windows PC or server, keep it r
 
 There are two ways to deploy:
 
-| | Package: 3 folders (recommended for hosting) | From source (this folder) |
+| | IIS package: 3 folders (recommended) | From source (this folder) |
 |---|---|---|
 | What you copy | `database\`, `api\`, `application\`: compiled, **no source code** | The whole project |
-| Needs on the host | Only SQL Server (Node.js is included) | Node.js + npm + SQL Server |
+| Needs on the server | IIS + ASP.NET Core Module V2 (.NET Hosting Bundle) + SQL Server. Node.js is included | Node.js + npm + SQL Server |
 | Build it with | `npm run package` → `..\deployment` | `scripts\deploy.ps1` (section 3) |
 | You edit | `api\settings.env`, `application\settings.env` | `.env` |
 
-## 0. The deployment package
+## 0. The IIS package
 
 On the development PC:
 
@@ -20,23 +20,24 @@ npm run package                     (output: ..\deployment, next to this project
 npm run package -- "D:\out\portal"  (or any other folder)
 ```
 
-The output contains exactly three folders. Install them in this order; each one has a README.txt:
+The output has exactly three folders, each with a README.txt giving the IIS steps:
 
-| Folder | What it is | You do |
+| Folder | What it is | On the server |
 |---|---|---|
-| `database\` | `full-database.sql` creates **everything**: the database, tables, indexes, triggers, the `vw_deployment_details` view, 6 stored procedures and the default users. Also `create-app-login.sql` and optional `sample-data.sql` | Run in SSMS (F5), or use `api\setup-database.cmd` |
-| `api\` | The API server (default port 4000). It's the only part that connects to SQL Server and holds the keys | Edit `settings.env` (DATABASE_URL, PORT, HOST), then run `install-service.cmd` as admin |
-| `application\` | The website people open (default port 3000) | Edit `settings.env` (PORT, API_URL), then run `install-service.cmd` as admin |
+| `database\` | `full-database.sql` creates **everything**: the database, tables, indexes, triggers, the `vw_deployment_details` view, 6 stored procedures and the default users. Also `create-app-login.sql` and optional `sample-data.sql` | Run in SSMS (F5) |
+| `api\` | API site: `web.config`, `settings.env` (DATABASE_URL), `bin\`, `runtime\`, `logs\` | IIS site, app pool "No Managed Code", binding `127.0.0.1:4000` |
+| `application\` | Website: `web.config`, `settings.env` (API_URL), `bin\`, `runtime\`, `logs\` | IIS site, app pool "No Managed Code", binding port 80/443 |
 
-How the parts fit together:
-- Browsers only talk to the **application**. It forwards `/api/...` requests to the API, so logins work without CORS or cookie setup.
-- **Same machine:** keep `HOST=127.0.0.1` in `api\settings.env`. The API is then reachable only from that machine, and the application uses `API_URL=http://127.0.0.1:4000`.
-- **Different machines:** set `HOST=0.0.0.0` in the API settings (install-service opens the firewall port), and set `API_URL=http://<api-ip>:4000` in the application settings.
-- The API generates `AUTH_SECRET` and `ENCRYPTION_SECRET` on its first start. Back up `api\settings.env`.
+How it runs:
+- Each `web.config` tells IIS to start `runtime\node.exe bin\launch.js` through the **ASP.NET Core Module V2**, which comes with the free .NET Hosting Bundle. IIS starts, restarts and stops it together with the site. There are no services and no scripts to run.
+- `launch.js` reads `settings.env` and listens only on the local port IIS gives it. Your IIS bindings (http/https, host name, certificate) decide what the outside world sees.
+- Browsers only talk to the **application** site, which forwards `/api/...` to `API_URL`. That's why the API site can be bound to `127.0.0.1`.
+- `AUTH_SECRET` and `ENCRYPTION_SECRET` are generated into `api\settings.env` when the package is built. **Back up that file.**
+- The app pool identity needs write permission on each `logs\` folder (the `icacls` command is in the READMEs).
 
-Re-running `npm run package` replaces `bin\` and `runtime\` in an existing package folder and never overwrites its `settings.env` files.
+Re-running `npm run package` replaces `bin\`, `runtime\` and `web.config`, and never overwrites existing `settings.env` files.
 
-The company name (`NEXT_PUBLIC_COMPANY_NAME`) is compiled in, so changing it means running `npm run package` again. To change the logo, replace `applicationin\public\logo.svg` and restart.
+The company name (`NEXT_PUBLIC_COMPANY_NAME`) is compiled in, so changing it means running `npm run package` again. To change the logo, replace `application\bin\public\logo.svg` and restart the site.
 
 How the split works in the code: `BUILD_TARGET=api|web` in `next.config.mjs` and the three modes in `middleware.ts`. The website build is made with `app/api` moved aside, so it contains no API or database code. `npm run dev`, `npm run build` and `npm start` are unchanged: they run the website and API together.
 

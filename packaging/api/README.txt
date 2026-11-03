@@ -1,43 +1,47 @@
-CLIENT MANAGEMENT PORTAL - API  (step 2 of 3)
-==============================================
+CLIENT MANAGEMENT PORTAL - API  (IIS site 1 of 2)
+==================================================
 
-The API is the server part: it talks to SQL Server, checks logins, and encrypts
-the vault. Compiled, no source code. Node.js is included (runtime\).
-Needs: Windows, network access to SQL Server.
+Compiled API server (no source code). It talks to SQL Server, checks logins and
+encrypts the vault. Node.js is included (runtime\); IIS starts it via web.config.
 
-FILES
-  settings.env            <- the only file you edit
-  setup-database.cmd      creates/upgrades the database (uses ..\database\full-database.sql)
-                          setup-database.cmd -Sample adds demo data
-  start.cmd               run in a window (quick test; close the window to stop)
-  install-service.cmd     run as admin: start with Windows, restart after a crash
-  restart-service.cmd     run as admin: restart after editing settings.env
-  uninstall-service.cmd   run as admin: stop and remove the automatic start
-  bin\, runtime\          compiled program and Node.js (don't edit)
-  logs\server.log         created when it runs
+WHAT'S HERE
+  web.config     tells IIS how to run it (don't edit)
+  settings.env   the only file you edit (database connection)
+  bin\           compiled program (don't edit)
+  runtime\       Node.js (don't edit)
+  logs\          startup errors appear here (stdout_*.log)
 
-INSTALL
-  1. Edit settings.env:
-       DATABASE_URL   your SQL Server, login and password (see ..\database\README.txt)
-       PORT           default 4000
-       HOST           127.0.0.1 if the application folder runs on this same machine (default)
-                      0.0.0.0   if the application runs on another machine
-     Leave AUTH_SECRET / ENCRYPTION_SECRET as they are; they are generated on first start.
-  2. Double-click setup-database.cmd (skip if you already ran full-database.sql in SSMS).
-  3. Right-click install-service.cmd -> Run as administrator.
-  4. BACK UP settings.env (at least ENCRYPTION_SECRET) somewhere safe.
-  5. Continue with the application folder (application\README.txt).
+ONE-TIME SERVER REQUIREMENT
+  The ASP.NET Core Module V2 for IIS. It comes with the free ".NET Hosting Bundle"
+  from Microsoft (any version 6, 7, 8 or newer):
+     https://dotnet.microsoft.com/download/dotnet  ->  "Hosting Bundle"
+  Already installed if the server runs any ASP.NET Core website.
+  After installing it, run  iisreset  once.
+
+INSTALL IN IIS
+  1. Copy this "api" folder to the server, e.g. C:\inetpub\ClientPortal\api
+  2. Edit settings.env -> DATABASE_URL (SQL Server, login, password).
+  3. IIS Manager -> Application Pools -> Add:
+        Name: ClientPortal-API    .NET CLR version: No Managed Code
+  4. IIS Manager -> Sites -> Add Website:
+        Site name: ClientPortal-API
+        Application pool: ClientPortal-API
+        Physical path: C:\inetpub\ClientPortal\api
+        Binding: http, IP address 127.0.0.1, port 4000
+          (127.0.0.1 = only this server can call the API; the application site
+           forwards browser requests to it. If the application site is on ANOTHER
+           server, use "All Unassigned" instead and allow port 4000 in the firewall
+           for that server only.)
+  5. Give the app pool write access to the logs folder (PowerShell as admin):
+        icacls "C:\inetpub\ClientPortal\api\logs" /grant "IIS AppPool\ClientPortal-API:(OI)(CI)M"
 
 CHECK
-  http://127.0.0.1:4000/api/auth/me  should answer {"success":false,"error":"Authentication required"}
-  (that means the API is running; it only answers API requests, not pages)
+  Open http://127.0.0.1:4000/api/auth/me on the server.
+  {"success":false,"error":"Authentication required"}  = working.
+  HTTP 500.30 / 502.5 = startup problem -> read logs\stdout_*.log
 
-UPDATING
-  uninstall-service.cmd (admin) -> replace bin\ and runtime\ with the new ones (keep settings.env)
-  -> setup-database.cmd -> install-service.cmd (admin)
+CHANGING SETTINGS
+  Edit settings.env, then IIS Manager -> ClientPortal-API -> Restart.
 
-TROUBLESHOOTING
-  Look at logs\server.log first.
-  Named instance (Server=PC\SQLEXPRESS) won't connect -> start the "SQL Server Browser"
-  service, or use Server=PC,PORT.
-  Vault shows "[Decryption Error]" -> ENCRYPTION_SECRET is not the one the secrets were saved with.
+UPDATING TO A NEW VERSION
+  Stop the site, replace bin\ and runtime\ (keep settings.env and web.config), start it.

@@ -1,18 +1,20 @@
 /**
- * Builds the deployment package: three folders, compiled, no source code.
+ * Builds the deployment package for IIS: three folders, compiled, no source code.
  *
  *   npm run package                         -> ..\deployment  (next to this project)
  *   npm run package -- "D:\out\portal"      -> custom folder
  *
  *   deployment\
  *     database\      full-database.sql (creates everything), sample-data.sql, create-app-login.sql
- *     api\           API server: settings.env, *.cmd, bin\ (compiled), runtime\ (node.exe)
- *     application\   website:    settings.env, *.cmd, bin\ (compiled), runtime\ (node.exe)
+ *     api\           IIS site: web.config, settings.env, bin\ (compiled), runtime\ (node.exe), logs\
+ *     application\   IIS site: web.config, settings.env, bin\ (compiled), runtime\ (node.exe), logs\
  *
- * Re-running replaces bin\ and runtime\ and the scripts, but never overwrites an
- * existing settings.env or logs\.
+ * IIS runs each site through the ASP.NET Core Module V2 (packaging/common/web.config),
+ * which starts runtime\node.exe bin\launch.js.
+ * Re-running replaces bin\, runtime\ and web.config; never an existing settings.env or logs\.
  */
 import { spawnSync, execSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +29,7 @@ const step = (m) => console.log(`\n==> ${m}`);
 const fail = (m) => { console.error(`\nERROR: ${m}`); process.exit(1); };
 const crlf = (s) => s.replace(/\r?\n/g, "\r\n");
 const writeText = (file, text) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, crlf(text)); };
+const readPkg = (...p) => fs.readFileSync(path.join(PKG, ...p), "utf8");
 
 if (OUT === ROOT || OUT.startsWith(ROOT + path.sep)) fail("Output folder must be outside the project folder.");
 
@@ -43,11 +46,11 @@ function nextBuild(target) {
     cwd: ROOT, stdio: "inherit", shell: true,
     env: { ...process.env, BUILD_TARGET: target, NODE_ENV: "production" },
   });
-  // throw (not process.exit) so the caller's finally can restore app/api
+  // throw (not process.exit) so the caller can restore app/api
   if (r.status !== 0) throw new Error(`${target} build failed`);
-  const standalone = path.join(ROOT, `.next-${target}`, "standalone");
-  if (!fs.existsSync(path.join(standalone, "server.js"))) throw new Error(`${target}: standalone output not found`);
-  return standalone;
+  if (!fs.existsSync(path.join(ROOT, `.next-${target}`, "standalone", "server.js"))) {
+    throw new Error(`${target}: standalone output not found`);
+  }
 }
 
 /** Copy a standalone build into <part>\bin, without secrets or source files. */
@@ -86,53 +89,36 @@ function installRuntime(partDir) {
   fs.copyFileSync(process.execPath, path.join(rt, "node.exe"));
 }
 
-function installScripts(partDir, { taskName, extra = [] }) {
-  const bin = path.join(partDir, "bin");
-  for (const f of ["run-server.ps1", "service.ps1"]) {
-    writeText(path.join(bin, f), fs.readFileSync(path.join(PKG, "common", f), "utf8"));
+/** web.config + launcher (IIS entry point) + logs folder. Removes files of older package layouts. */
+function installIisFiles(partDir, partName) {
+  for (const f of ["start.cmd", "install-service.cmd", "restart-service.cmd", "uninstall-service.cmd", "setup-database.cmd"]) {
+    fs.rmSync(path.join(partDir, f), { force: true });
   }
-  const ps = (file, args = "") =>
-    `powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bin\\${file}" ${args}`.trimEnd();
-  const cmds = {
-    "start.cmd": ["@echo off", "rem Runs it in this window. Close the window to stop it.", 'cd /d "%~dp0"', ps("run-server.ps1", "-Console")],
-    "install-service.cmd": ["@echo off", "rem Run as administrator: start automatically with Windows.", ps("service.ps1", `-Action install -Name ${taskName} %*`), "pause"],
-    "restart-service.cmd": ["@echo off", "rem Run as administrator: restart (e.g. after editing settings.env).", ps("service.ps1", `-Action restart -Name ${taskName}`), "pause"],
-    "uninstall-service.cmd": ["@echo off", "rem Run as administrator: stop and remove the automatic start.", ps("service.ps1", `-Action uninstall -Name ${taskName}`), "pause"],
-  };
-  for (const [name, lines] of Object.entries(cmds)) writeText(path.join(partDir, name), lines.join("\n") + "\n");
-  for (const [name, lines] of extra) writeText(path.join(partDir, name), lines.join("\n") + "\n");
+  writeText(path.join(partDir, "web.config"), readPkg("common", "web.config").replace("{{PART}}", partName));
+  fs.copyFileSync(path.join(PKG, "common", "launch.js"), path.join(partDir, "bin", "launch.js"));
+  writeText(
+    path.join(partDir, "logs", "README.txt"),
+    "IIS writes startup messages here (stdout_*.log).\nThe IIS app pool needs write permission on this folder - see ..\\README.txt\n"
+  );
 }
 
 function installSettingsAndReadme(partDir, kind) {
-  writeText(path.join(partDir, "README.txt"), fs.readFileSync(path.join(PKG, kind, "README.txt"), "utf8"));
+  writeText(path.join(partDir, "README.txt"), readPkg(kind, "README.txt"));
   const settings = path.join(partDir, "settings.env");
-  if (fs.existsSync(settings)) console.log(`  ${kind}: kept existing settings.env`);
-  else writeText(settings, fs.readFileSync(path.join(PKG, kind, "settings.env"), "utf8"));
-}
-
-/** mssql + its runtime dependencies, for the database setup tool. */
-function copyMssql(destNodeModules) {
-  const nm = path.join(ROOT, "node_modules");
-  const needed = new Set();
-  const collect = (name, fromDir) => {
-    const nested = fromDir && path.join(fromDir, "node_modules", name);
-    if (nested && fs.existsSync(nested)) return; // copied together with its parent
-    const dir = path.join(nm, name);
-    if (needed.has(name) || !fs.existsSync(dir)) return;
-    needed.add(name);
-    const pj = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
-    for (const dep of Object.keys({ ...pj.dependencies, ...pj.optionalDependencies })) collect(dep, dir);
-  };
-  collect("mssql");
-  for (const name of needed) fs.cpSync(path.join(nm, name), path.join(destNodeModules, name), { recursive: true });
-  return needed.size;
+  if (fs.existsSync(settings)) { console.log(`  ${kind}: kept existing settings.env`); return; }
+  // New package: put fresh random keys in now, so IIS never needs write access for them
+  const text = readPkg(kind, "settings.env").replace(
+    /^(AUTH_SECRET|ENCRYPTION_SECRET)="generate-on-first-start"/gm,
+    (_, key) => `${key}="${crypto.randomBytes(48).toString("base64url")}"`
+  );
+  writeText(settings, text);
 }
 
 // ---------------------------------------------------------------------------
 step(`Writing package to ${OUT}`);
 fs.mkdirSync(OUT, { recursive: true });
 
-// Remove the previous single-folder layout (app\, runtime\, top-level scripts) if present.
+// Remove the older single-folder layout (app\, runtime\, top-level scripts) if present.
 // A top-level settings.env is only deleted if it is still the unedited template.
 for (const old of ["app", "runtime"]) fs.rmSync(path.join(OUT, old), { recursive: true, force: true });
 for (const f of ["start.cmd", "setup-database.cmd", "setup-database.ps1", "install-service.cmd", "restart-service.cmd",
@@ -157,7 +143,7 @@ fs.mkdirSync(dbDir, { recursive: true });
 fs.copyFileSync(path.join(ROOT, "schema.sql"), path.join(dbDir, "full-database.sql"));
 fs.copyFileSync(path.join(ROOT, "seed-sample-data.sql"), path.join(dbDir, "sample-data.sql"));
 fs.copyFileSync(path.join(PKG, "database", "create-app-login.sql"), path.join(dbDir, "create-app-login.sql"));
-writeText(path.join(dbDir, "README.txt"), fs.readFileSync(path.join(PKG, "database", "README.txt"), "utf8"));
+writeText(path.join(dbDir, "README.txt"), readPkg("database", "README.txt"));
 console.log("  database\\ ready");
 
 // api\ -----------------------------------------------------------------------
@@ -166,25 +152,10 @@ step("Building the API");
 try { nextBuild("api"); } catch (e) { fail(e.message); }
 installBuild("api", apiDir, { withPublic: false }); // also removes .next-api before the website build
 installRuntime(apiDir);
-installScripts(apiDir, {
-  taskName: "ClientPortal-API",
-  extra: [["setup-database.cmd", [
-    "@echo off",
-    "rem Creates/upgrades the database from ..\\database\\full-database.sql using DATABASE_URL in settings.env.",
-    "rem   setup-database.cmd           -> empty system",
-    "rem   setup-database.cmd -Sample   -> plus demo data",
-    'powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bin\\setup-database.ps1" %*',
-    "echo.",
-    "pause",
-  ]]],
-});
-writeText(path.join(apiDir, "bin", "setup-database.ps1"), fs.readFileSync(path.join(PKG, "api", "setup-database.ps1"), "utf8"));
-fs.mkdirSync(path.join(apiDir, "bin", "tools"), { recursive: true });
-fs.copyFileSync(path.join(ROOT, "scripts", "init-db.js"), path.join(apiDir, "bin", "tools", "init-db.js"));
-const deps = copyMssql(path.join(apiDir, "bin", "tools", "node_modules"));
+installIisFiles(apiDir, "api");
 installSettingsAndReadme(apiDir, "api");
 writeText(path.join(apiDir, "bin", "VERSION.txt"), versionText);
-console.log(`  api\\ ready (database tool: mssql + ${deps - 1} dependencies)`);
+console.log("  api\\ ready");
 
 // application\ ---------------------------------------------------------------
 const appDir = path.join(OUT, "application");
@@ -199,7 +170,7 @@ try {
 fs.renameSync(API_HIDDEN, API_SRC);
 installBuild("web", appDir, { withPublic: true });
 installRuntime(appDir);
-installScripts(appDir, { taskName: "ClientPortal-Web" });
+installIisFiles(appDir, "application");
 installSettingsAndReadme(appDir, "application");
 writeText(path.join(appDir, "bin", "VERSION.txt"), versionText);
 console.log("  application\\ ready");
@@ -208,4 +179,4 @@ console.log("  application\\ ready");
 const size = (dir) => fs.readdirSync(dir, { withFileTypes: true })
   .reduce((n, e) => n + (e.isDirectory() ? size(path.join(dir, e.name)) : fs.statSync(path.join(dir, e.name)).size), 0);
 console.log(`\nPackage ready: ${OUT}  (${(size(OUT) / 1048576).toFixed(0)} MB)`);
-console.log("Install order: database\\README.txt -> api\\README.txt -> application\\README.txt");
+console.log("Install order: database\\README.txt -> api\\README.txt -> application\\README.txt (two IIS sites)");

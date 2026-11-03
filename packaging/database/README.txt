@@ -1,5 +1,5 @@
-CLIENT MANAGEMENT PORTAL - DATABASE  (step 1 of 3)
-===================================================
+CLIENT MANAGEMENT PORTAL - DATABASE  (do this first)
+====================================================
 
 Microsoft SQL Server 2016 or newer (Express is fine).
 
@@ -10,18 +10,16 @@ FILES
                            view  vw_deployment_details
                            6 stored procedures (reports / maintenance)
                            2 default staff accounts
-                         Safe to run again: it only adds what is missing, never deletes data.
-  create-app-login.sql   optional, recommended: a SQL login just for this app (instead of "sa")
+                         Safe to run again: only adds what is missing, never deletes data.
+  create-app-login.sql   recommended: a SQL login just for this app (instead of "sa")
   sample-data.sql        optional demo clients / servers / deployments (not for real use)
 
-HOW
-  1. (recommended) Open create-app-login.sql in SQL Server Management Studio,
-     change the password, press F5.
-  2. Open full-database.sql in SQL Server Management Studio, press F5.
-     If your database must have another name, change client_management_db
-     at the top of the script (and in api\settings.env).
-     -- or -- after filling in api\settings.env, double-click api\setup-database.cmd
-  3. Continue with the api folder (api\README.txt).
+HOW (SQL Server Management Studio)
+  1. Open create-app-login.sql, change the password, press F5.
+  2. Open full-database.sql, press F5.
+     (Different database name? change client_management_db at the top of both
+      scripts and in api\settings.env.)
+  3. Put the same server / login / password in api\settings.env -> DATABASE_URL.
 
 DEFAULT SIGN-IN (change both passwords on the Users page right away)
   admin@agency.com   / Admin123!
@@ -36,6 +34,5 @@ STORED PROCEDURES
   EXEC sp_purge_old_audit_logs @keep_days = 365;
 
 BACKUPS
-  Back up this database regularly, AND keep a copy of api\settings.env
-  (ENCRYPTION_SECRET) somewhere safe. Without that key, saved vault passwords
-  cannot be read, even from a backup.
+  Back up this database regularly AND keep a copy of api\settings.env.
+  Without its ENCRYPTION_SECRET, saved vault passwords cannot be read.
