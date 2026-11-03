@@ -91,8 +91,8 @@ function runMigrations(pool: sql.ConnectionPool): Promise<void> {
             updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
           );
 
-        -- clients.email was UNIQUE, which in SQL Server allows only ONE client
-        -- without an email. Replace it with "unique when filled in".
+        -- clients.email is NOT unique: one owner/contact can run several companies
+        -- (e.g. multiple companies on the same server). Drop any old uniqueness rule.
         -- (TRY/CATCH: parallel processes, e.g. build workers, may race on this)
         BEGIN TRY
           DECLARE @uq SYSNAME;
@@ -103,12 +103,15 @@ function runMigrations(pool: sql.ConnectionPool): Promise<void> {
            WHERE kc.parent_object_id = OBJECT_ID('clients') AND kc.type = 'UQ' AND c.name = 'email';
           IF @uq IS NOT NULL
             EXEC('ALTER TABLE clients DROP CONSTRAINT [' + @uq + ']');
-          IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_clients_email' AND object_id = OBJECT_ID('clients'))
-            EXEC('CREATE UNIQUE INDEX ux_clients_email ON clients(email) WHERE email IS NOT NULL');
+          IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ux_clients_email' AND object_id = OBJECT_ID('clients'))
+            EXEC('DROP INDEX ux_clients_email ON clients');
+          IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_clients_email' AND object_id = OBJECT_ID('clients'))
+            EXEC('CREATE INDEX idx_clients_email ON clients(email)');
         END TRY
         BEGIN CATCH
-          -- 1913 index exists, 3728/3727 constraint already dropped: another process won the race
-          IF ERROR_NUMBER() NOT IN (1913, 3727, 3728) THROW;
+          -- 1913 index exists, 3701 index already dropped, 3727/3728 constraint already dropped:
+          -- another process won the race
+          IF ERROR_NUMBER() NOT IN (1913, 3701, 3727, 3728) THROW;
         END CATCH
       `);
       await importMemoryDataOnce(pool);

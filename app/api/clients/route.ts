@@ -48,14 +48,8 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("POST /api/clients error:", error);
-    if (error?.number === 2627 || error?.number === 2601) {
-      return NextResponse.json(
-        { success: false, error: "Another client already uses this email address" },
-        { status: 409 }
-      );
-    }
     return NextResponse.json(
       { success: false, error: "Failed to create client" },
       { status: 500 }

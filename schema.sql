@@ -22,7 +22,7 @@ CREATE TABLE clients (
     id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     company_name    NVARCHAR(255) NOT NULL,
     contact_person  NVARCHAR(255) NULL,
-    email           NVARCHAR(255) NULL, -- unique when set: see ux_clients_email
+    email           NVARCHAR(255) NULL, -- not unique: one contact may own several companies
     phone_primary   NVARCHAR(50)  NULL,
     phone_secondary NVARCHAR(50)  NULL,
     address         NVARCHAR(MAX) NULL,
@@ -150,8 +150,6 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_clients_company_name')
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_clients_email')
     CREATE INDEX idx_clients_email ON clients(email);
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ux_clients_email')
-    CREATE UNIQUE INDEX ux_clients_email ON clients(email) WHERE email IS NOT NULL;
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_clients_phone')
     CREATE INDEX idx_clients_phone ON clients(phone_primary);
