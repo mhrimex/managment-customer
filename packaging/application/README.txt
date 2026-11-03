@@ -14,19 +14,19 @@ WHAT'S HERE
 
 INSTALL IN IIS  (after the API site, see api\README.txt)
   1. Copy this "application" folder to the server, e.g. C:\inetpub\ClientPortal\application
-  2. settings.env -> API_URL: the API site's address. Default http://127.0.0.1:4000
-     is right when the API site is on this server with that binding.
+  2. settings.env -> API_URL: the API site's address = the binding you gave the API site.
+     Example: API site bound to 127.0.0.1 port 5050  ->  API_URL=http://127.0.0.1:5050
   3. IIS Manager -> Application Pools -> Add:
         Name: ClientPortal-Web    .NET CLR version: No Managed Code
   4. IIS Manager -> Sites -> Add Website:
         Site name: ClientPortal-Web
         Application pool: ClientPortal-Web
         Physical path: C:\inetpub\ClientPortal\application
-        Binding: http, All Unassigned, port 80 (or any port / host name you like;
-                 add an https binding with your certificate if you have one)
+        Binding: any port / host name YOU choose (e.g. 80, 8080, or https 443 with
+                 your certificate). Nothing in the app depends on it.
   5. Give the app pool write access to the logs folder (PowerShell as admin):
         icacls "C:\inetpub\ClientPortal\application\logs" /grant "IIS AppPool\ClientPortal-Web:(OI)(CI)M"
-  6. Open the site: http://<server>/  ->  admin@agency.com / Admin123!
+  6. Open the site: http://<server>:<your port>/  ->  admin@agency.com / Admin123!
      Change both default passwords on the Users page right away.
 
 IMPORTANT

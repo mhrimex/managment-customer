@@ -27,16 +27,17 @@ INSTALL IN IIS
         Site name: ClientPortal-API
         Application pool: ClientPortal-API
         Physical path: C:\inetpub\ClientPortal\api
-        Binding: http, IP address 127.0.0.1, port 4000
+        Binding: http, IP address 127.0.0.1, any free port YOU choose (example: 4000)
           (127.0.0.1 = only this server can call the API; the application site
            forwards browser requests to it. If the application site is on ANOTHER
-           server, use "All Unassigned" instead and allow port 4000 in the firewall
+           server, use "All Unassigned" instead and allow your port in the firewall
            for that server only.)
+        Remember this port: application\settings.env -> API_URL must use it.
   5. Give the app pool write access to the logs folder (PowerShell as admin):
         icacls "C:\inetpub\ClientPortal\api\logs" /grant "IIS AppPool\ClientPortal-API:(OI)(CI)M"
 
 CHECK
-  Open http://127.0.0.1:4000/api/auth/me on the server.
+  Open http://127.0.0.1:<your API port>/api/auth/me on the server.
   {"success":false,"error":"Authentication required"}  = working.
   HTTP 500.30 / 502.5 = startup problem -> read logs\stdout_*.log
 
