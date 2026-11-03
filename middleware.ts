@@ -79,20 +79,37 @@ export async function middleware(request: NextRequest) {
   return pageGate(request, pathname, !!session, token);
 }
 
+/**
+ * Redirect on the address the visitor actually opened. Behind IIS (or any reverse proxy)
+ * request.url is the internal address (e.g. http://localhost:46461), so build the target
+ * from the forwarded Host / X-Forwarded-Proto headers instead.
+ */
+function redirectTo(request: NextRequest, location: string) {
+  const first = (v: string | null) => (v || "").split(",")[0].trim();
+  const proto = first(request.headers.get("x-forwarded-proto")) || request.nextUrl.protocol.replace(":", "");
+  const host = first(request.headers.get("x-forwarded-host")) || first(request.headers.get("host")) || request.nextUrl.host;
+  let target: URL;
+  try {
+    target = new URL(location, `${proto === "https" ? "https" : "http"}://${host}`);
+  } catch {
+    target = new URL(location, request.url); // malformed Host header: fall back
+  }
+  return NextResponse.redirect(target, 307);
+}
+
 /** Login page / protected page redirects, shared by the "all" and "web" modes. */
 function pageGate(request: NextRequest, pathname: string, signedIn: boolean, token?: string) {
   // Login page: signed-in users go straight to the dashboard
   if (pathname === "/login") {
-    if (signedIn) return NextResponse.redirect(new URL("/", request.url));
+    if (signedIn) return redirectTo(request, "/");
     const res = NextResponse.next();
     if (token) res.cookies.delete(AUTH_COOKIE_NAME); // clear invalid/expired cookie
     return res;
   }
 
   if (!signedIn) {
-    const loginUrl = new URL("/login", request.url);
-    if (pathname !== "/") loginUrl.searchParams.set("redirect", pathname);
-    const res = NextResponse.redirect(loginUrl);
+    const location = pathname !== "/" ? `/login?redirect=${encodeURIComponent(pathname)}` : "/login";
+    const res = redirectTo(request, location);
     if (token) res.cookies.delete(AUTH_COOKIE_NAME);
     return res;
   }
