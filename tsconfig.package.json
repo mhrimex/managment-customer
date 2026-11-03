@@ -1,0 +1,17 @@
+{
+  "//": "Used only by scripts/package.mjs builds (BUILD_TARGET=web|api); keeps them from type-checking the normal .next build output.",
+  "extends": "./tsconfig.json",
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next-web/types/**/*.ts",
+    ".next-api/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    ".next-standalone",
+    ".api-build-hidden"
+  ]
+}

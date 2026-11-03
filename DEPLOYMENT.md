@@ -4,14 +4,14 @@ How to install the Client Management Portal on a Windows PC or server, keep it r
 
 There are two ways to deploy:
 
-| | Copy-and-run package (recommended for hosting) | From source (this folder) |
+| | Package: 3 folders (recommended for hosting) | From source (this folder) |
 |---|---|---|
-| What you copy | One folder, compiled, **no source code** | The whole project |
+| What you copy | `database\`, `api\`, `application\`: compiled, **no source code** | The whole project |
 | Needs on the host | Only SQL Server (Node.js is included) | Node.js + npm + SQL Server |
 | Build it with | `npm run package` → `..\deployment` | `scripts\deploy.ps1` (section 3) |
-| You edit | `settings.env` | `.env` |
+| You edit | `api\settings.env`, `application\settings.env` | `.env` |
 
-## 0. Copy-and-run package
+## 0. The deployment package
 
 On the development PC:
 
@@ -20,16 +20,25 @@ npm run package                     (output: ..\deployment, next to this project
 npm run package -- "D:\out\portal"  (or any other folder)
 ```
 
-Copy the resulting folder to the host and follow its **README.txt**:
-1. Edit `settings.env` (DATABASE_URL, PORT).
-2. Run `setup-database.cmd`, or run `database\full-database.sql` in SSMS.
-3. Run `install-service.cmd` as administrator. The app then starts with Windows, restarts itself after a crash, and the firewall port is opened.
+The output contains exactly three folders. Install them in this order; each one has a README.txt:
 
-`database\full-database.sql` creates everything in one go: the database, tables, indexes, triggers, the `vw_deployment_details` view, the stored procedures (`sp_get_dashboard_stats`, `sp_get_upcoming_renewals`, `sp_search`, `sp_get_client_summary`, `sp_get_server_usage`, `sp_purge_old_audit_logs`) and the default users. The web app doesn't call the procedures; they're there for reports and maintenance jobs.
+| Folder | What it is | You do |
+|---|---|---|
+| `database\` | `full-database.sql` creates **everything**: the database, tables, indexes, triggers, the `vw_deployment_details` view, 6 stored procedures and the default users. Also `create-app-login.sql` and optional `sample-data.sql` | Run in SSMS (F5), or use `api\setup-database.cmd` |
+| `api\` | The API server (default port 4000). It's the only part that connects to SQL Server and holds the keys | Edit `settings.env` (DATABASE_URL, PORT, HOST), then run `install-service.cmd` as admin |
+| `application\` | The website people open (default port 3000) | Edit `settings.env` (PORT, API_URL), then run `install-service.cmd` as admin |
 
-Re-running `npm run package` updates the app inside an existing package folder. It never overwrites that folder's `settings.env`.
+How the parts fit together:
+- Browsers only talk to the **application**. It forwards `/api/...` requests to the API, so logins work without CORS or cookie setup.
+- **Same machine:** keep `HOST=127.0.0.1` in `api\settings.env`. The API is then reachable only from that machine, and the application uses `API_URL=http://127.0.0.1:4000`.
+- **Different machines:** set `HOST=0.0.0.0` in the API settings (install-service opens the firewall port), and set `API_URL=http://<api-ip>:4000` in the application settings.
+- The API generates `AUTH_SECRET` and `ENCRYPTION_SECRET` on its first start. Back up `api\settings.env`.
 
-The company name (`NEXT_PUBLIC_COMPANY_NAME`) is compiled into the package. To change it, set it in `.env` here and re-run `npm run package`. To change the logo, replace `app\public\logo.svg` in the package; no rebuild is needed.
+Re-running `npm run package` replaces `bin\` and `runtime\` in an existing package folder and never overwrites its `settings.env` files.
+
+The company name (`NEXT_PUBLIC_COMPANY_NAME`) is compiled in, so changing it means running `npm run package` again. To change the logo, replace `applicationin\public\logo.svg` and restart.
+
+How the split works in the code: `BUILD_TARGET=api|web` in `next.config.mjs` and the three modes in `middleware.ts`. The website build is made with `app/api` moved aside, so it contains no API or database code. `npm run dev`, `npm run build` and `npm start` are unchanged: they run the website and API together.
 
 The rest of this guide covers deploying **from source**.
 

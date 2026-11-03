@@ -3,17 +3,28 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// BUILD_STANDALONE=1 (set by scripts/package.mjs) builds a self-contained server
-// into .next-standalone/ for the copy-and-run deployment package; normal builds
-// are unchanged.
-const standalone = process.env.BUILD_STANDALONE === "1";
+/*
+ * BUILD_TARGET (set by scripts/package.mjs) builds one half of the deployment package:
+ *   web - website only. package.mjs moves app/api aside during this build, and
+ *         middleware.tsx forwards /api/* to the API server.
+ *   api - API only. Pages are compiled but unreachable (middleware returns 404).
+ * Unset (npm run dev / build / start): website + API together, as before.
+ */
+const target = process.env.BUILD_TARGET; // "web" | "api" | undefined
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: __dirname,
   devIndicators: false, // Disables the Next.js "N" indicator badge at the bottom
-  ...(standalone ? { output: "standalone", distDir: ".next-standalone" } : {}),
+  env: { APP_TARGET: target || "all" },
+  ...(target
+    ? {
+        output: "standalone",
+        distDir: `.next-${target}`,
+        typescript: { tsconfigPath: "tsconfig.package.json" },
+      }
+    : {}),
 };
 
 export default nextConfig;

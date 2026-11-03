@@ -40,6 +40,28 @@ export default function AppLayoutClient({
 }) {
   const pathname = usePathname();
   const isAuthPage = pathname === "/login";
+
+  // If the API rejects the session (expired, signed out elsewhere, API restarted with a
+  // new key), clear the cookie and go to the login page instead of showing empty pages.
+  useEffect(() => {
+    if (isAuthPage) return;
+    const original = window.fetch;
+    let redirecting = false;
+    window.fetch = async (input, init) => {
+      const res = await original(input, init);
+      const url = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
+      if (res.status === 401 && !redirecting && /^\/api\/(?!auth\/)/.test(url.replace(location.origin, ""))) {
+        redirecting = true;
+        try { await original("/api/auth/logout", { method: "POST" }); } catch {}
+        const back = location.pathname + location.search;
+        location.href = "/login" + (back !== "/" ? `?redirect=${encodeURIComponent(back)}` : "");
+      }
+      return res;
+    };
+    return () => {
+      window.fetch = original;
+    };
+  }, [isAuthPage]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 

@@ -23,9 +23,10 @@ function loadMssql() {
 }
 const sql = loadMssql();
 
-// Source project: schema.sql / seed-sample-data.sql at the root.
-// Deployment package: full-database.sql / sample-data.sql next to this script.
+// Deployment package: DB_SCRIPTS_DIR (the database\ folder) has full-database.sql / sample-data.sql.
+// Source project: schema.sql / seed-sample-data.sql at the project root.
 function resolveSqlFile(projectName, packageName) {
+  if (process.env.DB_SCRIPTS_DIR) return path.join(process.env.DB_SCRIPTS_DIR, packageName);
   const inProject = path.join(ROOT, projectName);
   if (fs.existsSync(inProject)) return inProject;
   return path.join(__dirname, packageName);

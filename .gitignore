@@ -4,6 +4,9 @@ node_modules/
 # Next.js build output
 .next/
 .next-standalone/
+.next-web/
+.next-api/
+.api-build-hidden/
 out/
 *.tsbuildinfo
 next-env.d.ts

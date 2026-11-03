@@ -1,16 +1,17 @@
-# Starts the Client Management Portal from this folder.
+# Starts this part of the Client Management Portal (api or application).
+# Lives in <part>\bin\. Settings come from <part>\settings.env.
 #   start.cmd               -> runs it in a window (close the window to stop)
 #   install-service.cmd     -> runs it automatically with Windows (uses this script)
 #
-# - reads settings.env
-# - first start: replaces AUTH_SECRET / ENCRYPTION_SECRET placeholders with random values
-# - waits up to 5 minutes for SQL Server (so it never starts before the database after a reboot)
-# - runs the app with the bundled Node.js (runtime\node.exe)
+# - first start (api): replaces AUTH_SECRET / ENCRYPTION_SECRET placeholders with random values
+# - api: waits up to 5 minutes for SQL Server, so it never starts before the database after a reboot
+# - runs bin\server.js with the bundled Node.js (runtime\node.exe)
 param([switch]$Console)
 
 $ErrorActionPreference = "Stop"
-$Root = $PSScriptRoot
+$Root = Split-Path -Parent $PSScriptRoot      # the api\ or application\ folder
 Set-Location $Root
+$Part = Split-Path -Leaf $Root
 
 $LogDir = Join-Path $Root "logs"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
@@ -24,16 +25,16 @@ function Say($msg) {
 function Stop-WithError($msg) { Say "ERROR: $msg"; if ($Console) { Read-Host "Press Enter to close" | Out-Null }; exit 1 }
 
 $node = Join-Path $Root "runtime\node.exe"
-$server = Join-Path $Root "app\server.js"
-if (-not (Test-Path $node))   { Stop-WithError "runtime\node.exe is missing. Copy the whole deployment folder." }
-if (-not (Test-Path $server)) { Stop-WithError "app\server.js is missing. Copy the whole deployment folder." }
+$server = Join-Path $Root "bin\server.js"
+if (-not (Test-Path $node))   { Stop-WithError "runtime\node.exe is missing. Copy the whole $Part folder." }
+if (-not (Test-Path $server)) { Stop-WithError "bin\server.js is missing. Copy the whole $Part folder." }
 
 # --- settings.env ---------------------------------------------------------
 $settingsFile = Join-Path $Root "settings.env"
 if (-not (Test-Path $settingsFile)) { Stop-WithError "settings.env not found in $Root" }
 $utf8 = New-Object Text.UTF8Encoding $false
 
-# First start: generate secrets in place
+# First start: generate secrets in place (only keys that exist in this settings file)
 $text = [IO.File]::ReadAllText($settingsFile)
 $changed = $false
 foreach ($key in @("AUTH_SECRET", "ENCRYPTION_SECRET")) {
@@ -56,12 +57,16 @@ foreach ($line in [IO.File]::ReadAllLines($settingsFile)) {
         $cfg[$Matches[1]] = $Matches[2].Trim('"').Trim("'")
     }
 }
-if (-not $cfg["DATABASE_URL"] -or $cfg["DATABASE_URL"] -match "Password=CHANGE-ME") {
+if ($cfg.ContainsKey("DATABASE_URL") -and (-not $cfg["DATABASE_URL"] -or $cfg["DATABASE_URL"] -match "Password=CHANGE-ME")) {
     Stop-WithError "Set DATABASE_URL in settings.env first."
 }
+if ($cfg.ContainsKey("API_URL") -and -not $cfg["API_URL"]) {
+    Stop-WithError "Set API_URL in settings.env first (where the api is running)."
+}
 $port = if ($cfg["PORT"]) { $cfg["PORT"] } else { "3000" }
+$bind = if ($cfg["HOST"]) { $cfg["HOST"] } else { "0.0.0.0" }
 
-# --- wait for SQL Server --------------------------------------------------
+# --- wait for SQL Server (api only) ---------------------------------------
 $dbHost = $null; $dbPort = 1433
 if ($cfg["DATABASE_URL"] -match '(?i)(?:Server|Data Source)\s*=\s*([^;]+)') {
     $srv = $Matches[1].Trim() -replace '^tcp:', ''
@@ -87,16 +92,17 @@ if ($dbHost) {
 foreach ($k in $cfg.Keys) { if ($cfg[$k] -ne "") { [Environment]::SetEnvironmentVariable($k, $cfg[$k], "Process") } }
 $env:NODE_ENV = "production"
 $env:PORT = $port
-$env:HOSTNAME = "0.0.0.0"   # listen on all network cards (other PCs can connect)
+$env:HOSTNAME = $bind
 
-Say "Starting on port $port"
+Say "Starting $Part on $($bind):$port"
 if ($Console) {
-    Write-Host "Open http://localhost:$port   (close this window to stop the app)" -ForegroundColor Green
+    $shown = if ($bind -in @("0.0.0.0", "::")) { "localhost" } else { $bind }
+    Write-Host "$Part running: http://$($shown):$port   (close this window to stop it)" -ForegroundColor Green
     & $node $server
 } else {
     # cmd does the redirection so the log stays plain UTF-8
     cmd /c "`"$node`" `"$server`" >> `"$Log`" 2>&1"
 }
 $code = $LASTEXITCODE
-Say "App stopped (exit code $code)"
+Say "Stopped (exit code $code)"
 exit $code
