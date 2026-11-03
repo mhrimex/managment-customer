@@ -37,11 +37,19 @@ export async function POST(request: NextRequest) {
 
     const token = createSessionToken(sessionUser);
 
-    // Set HTTP-only Cookie
+    // Set HTTP-only Cookie. "Secure" only when the site is actually served over
+    // HTTPS (directly or behind a proxy) — otherwise browsers on other PCs using
+    // http://<server-ip>:3000 would drop the cookie and login would silently fail.
+    // Override with COOKIE_SECURE=true|false in .env.
+    const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0].trim();
+    const isHttps = forwardedProto ? forwardedProto === "https" : request.nextUrl.protocol === "https:";
+    const secure =
+      process.env.COOKIE_SECURE === "true" ? true : process.env.COOKIE_SECURE === "false" ? false : isHttps;
+
     const cookieStore = await cookies();
     cookieStore.set(AUTH_COOKIE_NAME, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure,
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60, // 7 days
       path: "/",

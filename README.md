@@ -1,6 +1,6 @@
 # Reflection Solutions - Customer Management
 
-A production-ready **Customer Management System** built with **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS**, **TanStack Table (v8)**, and **PostgreSQL**. Designed specifically for software development and support agencies to manage client accounts, deployed software solutions (ERP, POS, Mobile Apps, Custom Web, E-Commerce), hosting infrastructure, license renewals, domains, and encrypted credentials.
+A production-ready **Customer Management System** built with **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS**, **TanStack Table (v8)**, and **Microsoft SQL Server**. Designed specifically for software development and support agencies to manage client accounts, deployed software solutions (ERP, POS, Mobile Apps, Custom Web, E-Commerce), hosting infrastructure, license renewals, domains, and encrypted credentials.
 
 ---
 
@@ -66,38 +66,23 @@ The SQL Server schema definition script ([`schema.sql`](file:///c:/Users/Develop
 5. **`client_deployments`** *(Junction Table)*: Client ↔ Solution ↔ Server with instance domain, environment, database name, installed version, license type, renewal date, and support SLA.
 6. **`deployment_credentials_vault`**: AES-256-GCM encrypted key-value pairs (DB passwords, SSH ports, API tokens).
 7. **`audit_logs`**: Timestamped security audit records (`user_email`, `action`, `resource_type`, `details`, `ip_address`).
+8. **`app_meta`**: Internal flags used by the app's automatic upgrades.
+
+Demo data lives separately in [`seed-sample-data.sql`](seed-sample-data.sql).
 
 ---
 
-## ⚡ Quickstart
+## 🚢 Deploying to a server
 
-### 1. Install Dependencies
-```bash
-npm install
-```
+See **[DEPLOYMENT.md](DEPLOYMENT.md)**. It covers the one-command install, starting with Windows, updates, backups, and where every setting lives.
 
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env`:
-```bash
-# SQL Server Connection String (update with your instance & credentials)
-DATABASE_URL="Server=localhost;Database=client_management_db;User Id=sa;Password=YourPassword123!;TrustServerCertificate=true;Encrypt=false"
-```
+---
 
-### 3. Initialize SQL Server Database
-You can either:
-- Open [`schema.sql`](file:///c:/Users/Developer8/Desktop/customer%20managment/schema.sql) in **SSMS (SQL Server Management Studio)**, create database `client_management_db`, and execute the script.
-- Or run the automated initialization script:
-```bash
-npm run db:init
-```
-*(Note: If no SQL Server database is running or connected, the app seamlessly runs using its in-memory fallback store for development with zero setup friction!)*
+## ⚡ Quickstart (development)
 
-### 4. Run Development Server
-```bash
-npm run dev
-```
-Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+1. `npm install`
+2. Copy `.env.example` to `.env` and set `DATABASE_URL`, `AUTH_SECRET` and `ENCRYPTION_SECRET` (the file explains each one).
+3. `npm run db:init` creates the database, tables and default users. Add the demo data with `npm run db:seed-sample`.
+4. `npm run dev`, then open http://localhost:3000.
 
-- Sign in with:
-  - **Admin**: `admin@agency.com` / `Admin123!`
-  - **Support Engineer**: `support@agency.com` / `Support123!`
+Sign in with `admin@agency.com` / `Admin123!` or `support@agency.com` / `Support123!`, and change these passwords on the Users page.

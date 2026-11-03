@@ -1,0 +1,175 @@
+# Deployment Guide
+
+How to install the Client Management Portal on a Windows PC or server, keep it running, update it, and change its settings.
+
+---
+
+## 1. Requirements
+
+| What | Version | Notes |
+|---|---|---|
+| Windows | 10 / 11 / Server 2016+ | |
+| Node.js | 18.18 or newer (LTS recommended) | https://nodejs.org |
+| Microsoft SQL Server | 2016+ (Express is fine) | Can be on the same PC or another one |
+| SQL Server login | SQL authentication | See step 2 |
+
+In **SQL Server Configuration Manager**, check that TCP/IP is enabled and SQL Server listens on port 1433, or on the port you put in `DATABASE_URL`.
+
+---
+
+## 2. Create a database login (once)
+
+Don't use `sa` for the app. In SQL Server Management Studio (SSMS), open a **New Query** on the server and run:
+
+```sql
+-- 1. Create the empty database (the app login below can't create databases itself)
+IF DB_ID(N'client_management_db') IS NULL CREATE DATABASE client_management_db;
+GO
+
+-- 2. A login just for this app. Choose your own strong password.
+CREATE LOGIN app_user WITH PASSWORD = 'Choose-A-Strong-Password-123!', CHECK_POLICY = ON;
+GO
+
+USE client_management_db;
+GO
+CREATE USER app_user FOR LOGIN app_user;
+-- db_owner lets the app create/upgrade its own tables on start
+ALTER ROLE db_owner ADD MEMBER app_user;
+GO
+```
+
+Your connection string will then be:
+
+```
+DATABASE_URL="Server=localhost;Database=client_management_db;User Id=app_user;Password=Choose-A-Strong-Password-123!;TrustServerCertificate=true;Encrypt=false"
+```
+
+---
+
+## 3. First install
+
+1. Copy the project folder to the PC, for example `C:\Apps\customer-management`.
+2. Open **PowerShell as administrator** (right-click → *Run as administrator*), then run:
+
+   ```powershell
+   cd "C:\Apps\customer-management"
+   powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -OpenFirewall
+   ```
+
+3. The first run creates `.env` with new random secrets and stops. Open `.env`, set `DATABASE_URL` (step 2), and save.
+4. **Back up the `ENCRYPTION_SECRET` value** in a password manager. If you lose it, every saved vault password becomes unreadable.
+5. Run the same command again. The script:
+   - installs packages
+   - creates the database and all tables, indexes, triggers and default users
+   - builds the production version
+   - registers a Windows startup task named **ClientManagementPortal**, which starts the app with Windows and restarts it within 1 minute if it crashes
+   - opens the firewall port, so other PCs on the network can reach the app
+   - prints the addresses to open
+6. Sign in with `admin@agency.com` / `Admin123!`. **Change the passwords of both default users** on the **Users** page right away.
+
+To also load demo data (5 sample clients, servers and deployments), add `-SampleData`. Don't do this on a real system.
+
+### Running only the database script
+
+| Want to | Run |
+|---|---|
+| Create or upgrade all tables (safe to repeat) | `npm run db:init` |
+| Same, plus demo data | `npm run db:seed-sample` |
+| Do it by hand in SSMS | Open `schema.sql` → F5, then optionally `seed-sample-data.sql` → F5 |
+
+`schema.sql` creates everything from nothing: the database, 8 tables, indexes, `updated_at` triggers and the 2 default users. Every statement checks first, so running it again never deletes or duplicates data.
+
+---
+
+## 4. Updating to a new version
+
+Copy the new files over the old ones, **keeping your `.env`**. Then, in PowerShell as administrator:
+
+```powershell
+cd "C:\Apps\customer-management"
+powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1
+```
+
+The script stops the app, updates packages and the database, rebuilds, and starts the app again. Your data is not touched.
+
+You also need to run it after changing **`NEXT_PUBLIC_*`** settings in `.env`, because those are built into the pages. For any other `.env` change, restarting is enough (see section 6).
+
+---
+
+## 5. Where to change things
+
+### Settings in `.env`
+
+| Setting | What it controls | After changing |
+|---|---|---|
+| `DATABASE_URL` | Which SQL Server, database, login and password the app uses | Restart |
+| `PORT` | Web port (default `3000`). With `-OpenFirewall`, re-run `deploy.ps1` so the firewall follows | Restart |
+| `AUTH_SECRET` | Signs login sessions. Changing it logs everyone out | Restart |
+| `ENCRYPTION_SECRET` | Key for vault passwords. **Never change it** once secrets are stored | — |
+| `COOKIE_SECURE` | Leave unset (automatic). Set `true` only if the site is always on HTTPS | Restart |
+| `NEXT_PUBLIC_COMPANY_NAME` | Company name in the sidebar and login page | Re-run `deploy.ps1` |
+| `NEXT_PUBLIC_COMPANY_LOGO` | Logo path; put the file in `public\` (e.g. `/my-logo.png`) | Re-run `deploy.ps1` |
+| `NEXT_PUBLIC_SHOW_DEMO_LOGINS` | One-click demo login buttons. Keep off in real use | Re-run `deploy.ps1` |
+| `NODE_ENV` | **Don't set it.** npm sets it automatically | — |
+
+### Settings inside the app
+
+| What | Where |
+|---|---|
+| Staff accounts, roles and passwords | **Users** page (admin only) |
+| Solutions catalog | **Solutions** page |
+| Backup / restore / reset data | **Maintenance** page |
+
+### Files, if you need to change code
+
+| File | Purpose |
+|---|---|
+| `schema.sql` | Full database structure and default users |
+| `seed-sample-data.sql` | Optional demo data |
+| `lib/db.ts` | All database queries; automatic upgrades run on start (`runMigrations`) |
+| `public/logo.svg`, `app/icon.svg` | Default logo and browser tab icon |
+| `tailwind.config.ts`, `app/globals.css` | Colours, fonts, sizes |
+| `scripts/deploy.ps1` | Install/update script |
+| `scripts/run-server.ps1` | What the startup task runs: waits for SQL Server, then starts the app |
+
+---
+
+## 6. Day-to-day
+
+| Task | How (PowerShell as administrator) |
+|---|---|
+| Restart the app | `Stop-ScheduledTask ClientManagementPortal; Start-ScheduledTask ClientManagementPortal` |
+| Is it running? | `Get-ScheduledTask ClientManagementPortal` → State `Running` |
+| See errors | Open `logs\server.log` in the project folder |
+| Stop autostart and remove the task | `powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -Uninstall` (database and files are kept) |
+
+If `Stop-ScheduledTask` leaves the app running, the app is a separate `node.exe` process. Running `deploy.ps1` handles this for you.
+
+---
+
+## 7. Backups
+
+You need **both** of these to restore:
+
+1. **The database.** Schedule a nightly backup, either through a SQL Server Agent job or with Windows Task Scheduler running:
+   ```
+   sqlcmd -S localhost -U app_user -P "<password>" -Q "BACKUP DATABASE client_management_db TO DISK='D:\Backups\client_management_db.bak' WITH INIT, COMPRESSION"
+   ```
+   (Remove `COMPRESSION` on SQL Server Express. The login needs backup rights: `db_owner` or `db_backupoperator`.)
+2. **The `.env` file**, or at least `ENCRYPTION_SECRET`. Store it away from the database backup, for example in a password manager.
+
+The **Maintenance → Export backup** button in the app gives you a JSON snapshot as an extra copy.
+
+---
+
+## 8. Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| Other PCs can't open the page | Firewall: re-run `deploy.ps1 -OpenFirewall` as admin. Use the address the script printed (`http://192.168.x.x:3000`) |
+| Login works on this PC but loops back to the login page from other PCs | `COOKIE_SECURE=true` is set while using `http://`. Remove it |
+| "Database setup failed" | Check `DATABASE_URL`, that the SQL Server service runs, that TCP/IP is enabled, and the login/password |
+| Named instance (`Server=PC\SQLEXPRESS`) won't connect | Start the **SQL Server Browser** service, or use `Server=PC,PORT` |
+| Vault shows "[Decryption Error]" | `ENCRYPTION_SECRET` differs from the one used to save those secrets. Restore the original value |
+| Changes to `NEXT_PUBLIC_*` don't show | Re-run `deploy.ps1` (rebuild needed) |
+| App doesn't start after reboot | Look at `logs\server.log`. The app waits up to 5 minutes for SQL Server before starting |

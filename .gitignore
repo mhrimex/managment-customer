@@ -16,6 +16,7 @@ next-env.d.ts
 *backup*.json
 
 # logs / OS / editor
+logs/
 npm-debug.log*
 *.log
 .DS_Store
