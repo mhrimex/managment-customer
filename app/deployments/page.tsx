@@ -178,7 +178,7 @@ function DeploymentsTableContent() {
   const handleDelete = async (id: string, clientName?: string) => {
     const ok = await confirm({
       title: "Delete this deployment?",
-      message: `The deployment for ${clientName || "the client"} and its vault credentials will be removed permanently.`,
+      message: `The deployment for ${clientName || "the client"} and its vault credentials will be removed permanently. Employees lose their access to it; their accounts stay.`,
       confirmLabel: "Delete deployment",
       danger: true,
     });

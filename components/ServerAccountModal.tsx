@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import ModalShell, { ModalCloseButton } from "@/components/ModalShell";
 import { Save, AlertCircle, KeyRound, Eye, EyeOff, Building2 } from "lucide-react";
-import { Server, ServerAccount } from "@/types";
+import { AccountDeployment, Server, ServerAccount } from "@/types";
 import { useFeedback } from "@/components/Feedback";
 
 const inputCls =
@@ -30,8 +30,8 @@ export default function ServerAccountModal({
   const [error, setError] = useState<string | null>(null);
 
   const [servers, setServers] = useState<Server[]>([]);
-  const [companies, setCompanies] = useState<Array<{ id: string; company_name: string }>>([]);
-  const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [deployments, setDeployments] = useState<AccountDeployment[]>([]);
+  const [deploymentsLoading, setDeploymentsLoading] = useState(false);
 
   const [serverId, setServerId] = useState("");
   const [username, setUsername] = useState("");
@@ -51,7 +51,7 @@ export default function ServerAccountModal({
     setPassword("");
     setShowPassword(false);
     setClearPassword(false);
-    setSelected(new Set((accountToEdit?.companies || []).map((c) => c.id.toLowerCase())));
+    setSelected(new Set((accountToEdit?.deployments || []).map((d) => d.id.toLowerCase())));
     setIsActive(accountToEdit ? accountToEdit.is_active : true);
     setNotes(accountToEdit?.notes || "");
     fetch("/api/servers")
@@ -60,31 +60,46 @@ export default function ServerAccountModal({
       .catch(() => {});
   }, [isOpen, accountToEdit]);
 
-  // Companies that can be ticked = companies deployed on the chosen server
+  // What can be ticked = the deployments on the chosen server
   useEffect(() => {
     if (!isOpen || !serverId) {
-      setCompanies([]);
+      setDeployments([]);
       return;
     }
     let cancelled = false;
-    setCompaniesLoading(true);
-    fetch(`/api/servers/${serverId}/companies`)
+    setDeploymentsLoading(true);
+    fetch(`/api/servers/${serverId}/deployments`)
       .then((r) => r.json())
       .then((d) => {
         if (cancelled || !d.success) return;
-        setCompanies(d.data);
-        // drop ticks for companies that are not on this server
-        const allowed = new Set<string>(d.data.map((c: { id: string }) => c.id.toLowerCase()));
+        setDeployments(d.data);
+        // drop ticks for deployments that are not on this server
+        const allowed = new Set<string>(d.data.map((x: { id: string }) => x.id.toLowerCase()));
         setSelected((prev) => new Set([...prev].filter((id) => allowed.has(id))));
       })
       .catch(() => {})
-      .finally(() => !cancelled && setCompaniesLoading(false));
+      .finally(() => !cancelled && setDeploymentsLoading(false));
     return () => {
       cancelled = true;
     };
   }, [isOpen, serverId]);
 
   if (!isOpen) return null;
+
+  // one group per company, in the order the API returns them
+  const groups: Array<{ clientId: string; name: string; items: AccountDeployment[] }> = [];
+  for (const d of deployments) {
+    const g = groups.find((x) => x.clientId === d.client_id);
+    if (g) g.items.push(d);
+    else groups.push({ clientId: d.client_id, name: d.company_name, items: [d] });
+  }
+
+  const setGroup = (ids: string[], on: boolean) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+      return next;
+    });
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -105,7 +120,7 @@ export default function ServerAccountModal({
       const body: Record<string, unknown> = {
         server_id: serverId,
         username: username.trim(),
-        client_ids: [...selected],
+        deployment_ids: [...selected],
         is_active: isActive,
         notes: notes.trim() || null,
       };
@@ -216,44 +231,51 @@ export default function ServerAccountModal({
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-slate-300">Companies this account can open</label>
-            {companies.length > 1 && (
-              <button
-                type="button"
-                onClick={() =>
-                  setSelected(selected.size === companies.length ? new Set() : new Set(companies.map((c) => c.id.toLowerCase())))
-                }
-                className="text-xs font-semibold text-teal-400 hover:underline"
-              >
-                {selected.size === companies.length ? "Clear all" : "Select all"}
-              </button>
-            )}
-          </div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">What this account can open</label>
           {!serverId ? (
             <p className="text-sm text-slate-500 italic p-3 rounded-xl border border-dashed border-slate-700">Choose a server first.</p>
-          ) : companiesLoading ? (
-            <p className="text-sm text-slate-400 p-3">Loading companies…</p>
-          ) : companies.length === 0 ? (
+          ) : deploymentsLoading ? (
+            <p className="text-sm text-slate-400 p-3">Loading deployments…</p>
+          ) : deployments.length === 0 ? (
             <p className="text-sm text-amber-300/90 p-3 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5">
-              No companies are deployed on this server yet. Add a deployment for a company on this server first;
-              you can still save the account without companies.
+              Nothing is deployed on this server yet. Add a deployment on this server first;
+              you can still save the account without access.
             </p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {companies.map((c) => {
-                const on = selected.has(c.id.toLowerCase());
+            <div className="space-y-3">
+              {groups.map((g) => {
+                const ids = g.items.map((d) => d.id.toLowerCase());
+                const allOn = ids.every((id) => selected.has(id));
                 return (
-                  <label
-                    key={c.id}
-                    className={`flex items-center gap-3 px-3.5 py-3 rounded-xl border cursor-pointer select-none transition-colors ${
-                      on ? "bg-teal-500/10 border-teal-500/40 text-white" : "bg-slate-800/60 border-slate-700 text-slate-300 hover:border-slate-600"
-                    }`}
-                  >
-                    <input type="checkbox" checked={on} onChange={() => toggle(c.id)} className="w-5 h-5 accent-teal-500 shrink-0" />
-                    <Building2 size={16} className={on ? "text-teal-400 shrink-0" : "text-slate-500 shrink-0"} />
-                    <span className="text-sm font-medium truncate">{c.company_name}</span>
-                  </label>
+                  <div key={g.clientId} className="rounded-xl border border-slate-700 overflow-hidden">
+                    <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 bg-slate-800/70">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-100 min-w-0">
+                        <Building2 size={15} className="text-emerald-400 shrink-0" />
+                        <span className="truncate">{g.name}</span>
+                      </span>
+                      {ids.length > 1 && (
+                        <button type="button" onClick={() => setGroup(ids, !allOn)} className="shrink-0 text-xs font-semibold text-teal-400 hover:underline px-1 py-1">
+                          {allOn ? "Clear all" : "Select all"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="divide-y divide-slate-800">
+                      {g.items.map((d) => {
+                        const on = selected.has(d.id.toLowerCase());
+                        return (
+                          <label key={d.id} className={`flex items-center gap-3 px-3.5 py-3 cursor-pointer select-none transition-colors ${on ? "bg-teal-500/10" : "hover:bg-slate-800/40"}`}>
+                            <input type="checkbox" checked={on} onChange={() => toggle(d.id)} className="w-5 h-5 accent-teal-500 shrink-0" />
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium text-slate-100 truncate">{d.solution_name}</span>
+                              <span className="block text-xs font-mono text-slate-400 truncate">
+                                {[d.database_name || "no database name", d.environment].filter(Boolean).join(" • ")}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
             </div>

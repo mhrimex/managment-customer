@@ -105,7 +105,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const deleteAccount = async (acc: ServerAccount) => {
     const ok = await confirm({
       title: `Delete account ${acc.username}?`,
-      message: `The login "${acc.username}" on ${acc.server_name} and its company access will be removed from this list.`,
+      message: `The login "${acc.username}" on ${acc.server_name} and its access will be removed from this list.`,
       confirmLabel: "Delete account",
       danger: true,
     });
@@ -277,19 +277,24 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                     )}
                   </div>
 
-                  {/* Companies */}
+                  {/* What this account can open */}
                   <div>
-                    <div className="text-xs text-slate-400 mb-2">Can open ({a.companies.length})</div>
-                    {a.companies.length ? (
-                      <div className="flex flex-wrap gap-2">
-                        {a.companies.map((c) => (
-                          <Link key={c.id} href={`/clients/${c.id}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-sm hover:bg-emerald-500/20">
-                            <Building2 size={14} /> {c.company_name}
+                    <div className="text-xs text-slate-400 mb-2">Can open ({a.deployments.length})</div>
+                    {a.deployments.length ? (
+                      <div className="space-y-2">
+                        {a.deployments.map((d) => (
+                          <Link key={d.id} href={`/clients/${d.client_id}`} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 hover:bg-emerald-500/20 min-w-0">
+                            <Building2 size={15} className="text-emerald-400 shrink-0" />
+                            <span className="min-w-0">
+                              <span className="block text-xs text-emerald-300/90 [overflow-wrap:anywhere]">{d.company_name}</span>
+                              <span className="block text-sm font-semibold text-slate-100 [overflow-wrap:anywhere]">{d.solution_name}</span>
+                              {d.database_name && <span className="block text-xs font-mono text-slate-400 [overflow-wrap:anywhere]">{d.database_name}</span>}
+                            </span>
                           </Link>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-sm text-slate-500 italic">No companies selected</span>
+                      <span className="text-sm text-slate-500 italic">Nothing selected</span>
                     )}
                   </div>
 

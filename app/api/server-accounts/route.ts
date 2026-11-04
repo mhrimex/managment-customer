@@ -4,13 +4,14 @@ import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { apiError } from "@/lib/api-errors";
 
-/** GET /api/server-accounts?server_id=&client_id=&employee_id=&q=   (passwords are never included) */
+/** GET /api/server-accounts?server_id=&client_id=&deployment_id=&employee_id=&q=   (passwords are never included) */
 export async function GET(request: NextRequest) {
   try {
     const sp = new URL(request.url).searchParams;
     const data = await listAccounts({
       server_id: sp.get("server_id") || undefined,
       client_id: sp.get("client_id") || undefined,
+      deployment_id: sp.get("deployment_id") || undefined,
       employee_id: sp.get("employee_id") || undefined,
       q: sp.get("q") || undefined,
     });
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
     const account = await createAccount(await request.json());
-    const access = account.companies.map((c) => c.company_name).join(", ");
+    const access = account.deployments.map((d) => `${d.company_name} ${d.solution_name}`).join(", ");
     await logAuditEvent({
       user_id: user?.id,
       user_email: user?.email || "unknown",

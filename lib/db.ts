@@ -675,6 +675,7 @@ export async function deleteServer(id: string): Promise<{ deleted: boolean; unas
     await inTransaction(async (run) => {
       const r1 = await run("UPDATE client_deployments SET server_id = NULL, updated_at = SYSUTCDATETIME() WHERE server_id = @id", { id });
       unassigned = r1.rowsAffected?.[0] || 0;
+      await run("DELETE FROM server_accounts WHERE server_id = @id", { id });
       const r2 = await run("DELETE FROM servers WHERE id = @id", { id });
       deleted = (r2.rowsAffected?.[0] || 0) > 0;
       if (!deleted) throw new NotFoundError();
@@ -932,6 +933,13 @@ export async function updateDeployment(id: string, data: Partial<ClientDeploymen
        WHERE id = @id`,
       { id, ...deploymentParams(merged) }
     );
+    await query(
+      `DELETE x FROM server_account_deployments x
+         JOIN server_accounts a ON a.id = x.account_id
+         JOIN client_deployments d ON d.id = x.deployment_id
+        WHERE x.deployment_id = @id AND (d.server_id IS NULL OR d.server_id <> a.server_id)`,
+      { id }
+    );
     return getDeploymentById(id);
   }
 
@@ -1175,10 +1183,10 @@ export async function exportSystemBackup(): Promise<SystemBackupData> {
   const employees = sqlOn ? await query("SELECT * FROM employees ORDER BY full_name") : [];
   // account passwords stay encrypted in the backup, like the vault
   const server_accounts = sqlOn ? await query("SELECT * FROM server_accounts ORDER BY username") : [];
-  const server_account_access = sqlOn ? await query("SELECT account_id, client_id FROM server_account_access") : [];
+  const server_account_deployments = sqlOn ? await query("SELECT account_id, deployment_id FROM server_account_deployments") : [];
 
   return {
-    version: "1.1.0", exported_at: new Date().toISOString(),
+    version: "1.2.0", exported_at: new Date().toISOString(),
     stats: { clients_count: clients.length, solutions_count: solutions.length, servers_count: servers.length, deployments_count: deployments.length, credentials_count: credentials.length, audit_logs_count: 0 },
     clients: clients.map(({ deployments: _d, deployments_count: _n, ...c }) => c),
     solutions: solutions.map(({ deployments_count: _n, ...s }: any) => s),
@@ -1187,7 +1195,7 @@ export async function exportSystemBackup(): Promise<SystemBackupData> {
     credentials,
     employees,
     server_accounts,
-    server_account_access,
+    server_account_deployments,
   };
 }
 
@@ -1217,12 +1225,32 @@ export async function restoreSystemBackup(backup: Partial<SystemBackupData>): Pr
       (a) => employeeIds.has(String(a.employee_id).toLowerCase()) && serverIds.has(String(a.server_id).toLowerCase())
     );
     const accountIds = new Set(accounts.map((a) => String(a.id).toLowerCase()));
-    const access = ((backup.server_account_access || []) as any[]).filter(
-      (x) => accountIds.has(String(x.account_id).toLowerCase()) && clientIds.has(String(x.client_id).toLowerCase())
-    );
+    const accountById = new Map(accounts.map((a) => [String(a.id).toLowerCase(), a]));
+    const pairs = new Map<string, { account_id: string; deployment_id: string }>();
+    const addPair = (account_id: string, deployment_id: string) =>
+      pairs.set(`${account_id}|${deployment_id}`.toLowerCase(), { account_id, deployment_id });
+    for (const x of (backup.server_account_deployments || []) as any[]) {
+      if (accountIds.has(String(x.account_id).toLowerCase()) && deploymentIds.has(String(x.deployment_id).toLowerCase())) {
+        addPair(x.account_id, x.deployment_id);
+      }
+    }
+    // Backups from version 1.1.0 stored access per company: expand to that company's
+    // deployments on the account's server.
+    for (const x of (backup.server_account_access || []) as any[]) {
+      const acc = accountById.get(String(x.account_id).toLowerCase());
+      if (!acc) continue;
+      for (const d of deployments) {
+        if (sameId(d.client_id, x.client_id) && sameId(d.server_id, acc.server_id)) addPair(x.account_id, d.id);
+      }
+    }
+    const access = [...pairs.values()].filter((x) => {
+      const acc = accountById.get(String(x.account_id).toLowerCase());
+      const dep = deployments.find((d) => sameId(d.id, x.deployment_id));
+      return !!acc && !!dep && sameId(dep.server_id, acc.server_id);
+    });
 
     await inTransaction(async (run) => {
-      await run("DELETE FROM server_account_access");
+      await run("DELETE FROM server_account_deployments");
       await run("DELETE FROM server_accounts");
       await run("DELETE FROM employees");
       await run("DELETE FROM deployment_credentials_vault");
@@ -1259,8 +1287,8 @@ export async function restoreSystemBackup(backup: Partial<SystemBackupData>): Pr
         );
       }
       for (const x of access) {
-        await run("INSERT INTO server_account_access (account_id, client_id) VALUES (@account_id, @client_id)",
-          { account_id: x.account_id, client_id: x.client_id });
+        await run("INSERT INTO server_account_deployments (account_id, deployment_id) VALUES (@account_id, @deployment_id)",
+          { account_id: x.account_id, deployment_id: x.deployment_id });
       }
     });
 
@@ -1283,7 +1311,7 @@ export async function restoreSystemBackup(backup: Partial<SystemBackupData>): Pr
 export async function clearOrResetSystemData(mode: "reset_seed" | "clear_all"): Promise<{ success: boolean; message: string }> {
   if (await dbAvailable()) {
     await inTransaction(async (run) => {
-      await run("DELETE FROM server_account_access");
+      await run("DELETE FROM server_account_deployments");
       await run("DELETE FROM server_accounts");
       await run("DELETE FROM employees");
       await run("DELETE FROM deployment_credentials_vault");

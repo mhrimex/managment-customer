@@ -144,7 +144,7 @@ export default function ClientDetailPage({
   const handleDeleteDeployment = async (depId: string, solutionName?: string) => {
     const ok = await confirm({
       title: `Delete ${solutionName || "this"} deployment?`,
-      message: "The deployment and its vault credentials will be removed permanently.",
+      message: "The deployment and its vault credentials will be removed permanently. Employees lose their access to it; their accounts stay.",
       confirmLabel: "Delete deployment",
       danger: true,
     });
@@ -463,6 +463,12 @@ export default function ClientDetailPage({
                     <span className="font-mono text-teal-300">{a.username}</span> on {a.server_name}
                     {!a.is_active && " (disabled)"}
                   </div>
+                  <div className="text-xs text-emerald-300/90 truncate mt-0.5">
+                    {a.deployments
+                      .filter((d) => d.client_id.toLowerCase() === id.toLowerCase())
+                      .map((d) => d.solution_name)
+                      .join(", ")}
+                  </div>
                 </div>
               </Link>
             ))}
@@ -613,6 +619,31 @@ export default function ClientDetailPage({
                     {dep.notes}
                   </div>
                 )}
+
+                {/* Employees who can open this deployment */}
+                {(() => {
+                  const users = access.filter((a) => a.deployments.some((d) => d.id.toLowerCase() === dep.id.toLowerCase()));
+                  return (
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 mb-2">
+                        <KeyRound size={13} className="text-teal-400" />
+                        Employees with access ({users.length})
+                      </span>
+                      {users.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {users.map((a) => (
+                            <Link key={a.id} href={`/employees/${a.employee_id}`} className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-teal-500/40 text-xs ${a.is_active ? "" : "opacity-60"}`}>
+                              <span className="font-mono font-semibold text-teal-300">{a.username}</span>
+                              <span className="text-slate-300">{a.employee_name}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-500 italic">No employee can open this deployment yet.</div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Credentials Vault for this deployment */}
                 <div className="pt-2 border-t border-slate-800/80">

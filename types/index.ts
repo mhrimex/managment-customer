@@ -213,6 +213,8 @@ export interface SystemBackupData {
   // since backup version 1.1.0
   employees?: Partial<Employee>[];
   server_accounts?: Array<Record<string, any>>;
+  server_account_deployments?: Array<{ account_id: string; deployment_id: string }>;
+  /** only in backups from version 1.1.0, when access was per company */
   server_account_access?: Array<{ account_id: string; client_id: string }>;
 }
 
@@ -235,7 +237,18 @@ export interface Employee {
   accounts?: ServerAccount[];
 }
 
-/** One login on one server (e.g. mohamad1 on Rimex) and the companies it can open there. */
+/** A deployment an account can open: company + solution + database on the account's server. */
+export interface AccountDeployment {
+  id: string;
+  client_id: string;
+  company_name: string;
+  solution_name: string;
+  database_name?: string | null;
+  environment?: string;
+  instance_url?: string | null;
+}
+
+/** One login on one server (e.g. mohamad1 on Rimex) and the deployments it can open there. */
 export interface ServerAccount {
   id: string;
   employee_id: string;
@@ -249,7 +262,7 @@ export interface ServerAccount {
   has_password: boolean;
   is_active: boolean;
   notes?: string | null;
-  companies: Array<{ id: string; company_name: string }>;
+  deployments: AccountDeployment[];
   created_at?: string;
   updated_at?: string;
 }

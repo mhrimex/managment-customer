@@ -24,7 +24,7 @@ The output has exactly three folders, each with a README.txt giving the IIS step
 
 | Folder | What it is | On the server |
 |---|---|---|
-| `database\` | `full-database.sql` creates **everything**: the database, tables, indexes, triggers, the `vw_deployment_details` view, 6 stored procedures and the default users. Also `create-app-login.sql` and optional `sample-data.sql` | Run in SSMS (F5) |
+| `database\` | `full-database.sql` creates **everything**: the database, tables, indexes, triggers, the `vw_deployment_details` and `vw_server_account_access` views, 7 stored procedures and the default users. Also `create-app-login.sql` and optional `sample-data.sql` | Run in SSMS (F5) |
 | `api\` | API site: `web.config`, `settings.env` (DATABASE_URL), `bin\`, `runtime\`, `logs\` | IIS site, app pool "No Managed Code", binding `127.0.0.1:4000` |
 | `application\` | Website: `web.config`, `settings.env` (API_URL), `bin\`, `runtime\`, `logs\` | IIS site, app pool "No Managed Code", binding port 80/443 |
 

@@ -273,10 +273,10 @@ export default function ServersPage() {
                               {!a.is_active && <span className="text-[10px] text-slate-500">(disabled)</span>}
                               <span
                                 className="ml-auto shrink-0 flex items-center gap-1 text-slate-400"
-                                title={a.companies.map((c) => c.company_name).join(", ") || "No companies"}
+                                title={a.deployments.map((d) => `${d.company_name} – ${d.solution_name}`).join(", ") || "No access selected"}
                               >
                                 <Building2 size={12} />
-                                {a.companies.length}
+                                {a.deployments.length}
                               </span>
                             </Link>
                           ))}

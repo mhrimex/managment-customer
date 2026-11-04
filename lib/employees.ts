@@ -3,12 +3,12 @@
  *
  *   employee (Mohamad)
  *     └─ server account: username "mohamad1" on server Rimex  (unique per server)
- *          └─ access: Cosmea, Parfum de Niche  (only companies deployed on that server)
+ *          └─ access: Cosmea ERP, Parfum de Niche ERP  (only deployments on that server)
  *
  * Account passwords are encrypted like the vault and only returned by revealAccountPassword().
  * These features need SQL Server (no in-memory fallback).
  */
-import { Employee, ServerAccount } from "@/types";
+import { AccountDeployment, Employee, ServerAccount } from "@/types";
 import { dbAvailable, execute, inTransaction, query } from "@/lib/db";
 import { encrypt, decrypt } from "@/lib/crypto";
 
@@ -63,19 +63,22 @@ async function loadAccounts(where: string, params: Record<string, any>): Promise
   );
   if (!rows.length) return [];
 
-  const access = await query<{ account_id: string; client_id: string; company_name: string }>(
-    `SELECT x.account_id, c.id AS client_id, c.company_name
-       FROM server_account_access x
-       JOIN clients c ON c.id = x.client_id
+  const access = await query<AccountDeployment & { account_id: string }>(
+    `SELECT x.account_id, d.id, c.id AS client_id, c.company_name, s.name AS solution_name,
+            d.database_name, d.environment, d.instance_url
+       FROM server_account_deployments x
+       JOIN client_deployments d ON d.id = x.deployment_id
+       JOIN clients c   ON c.id = d.client_id
+       JOIN solutions s ON s.id = d.solution_id
       WHERE x.account_id IN (SELECT a.id FROM server_accounts a JOIN employees e ON e.id = a.employee_id WHERE ${where})
-      ORDER BY c.company_name`,
+      ORDER BY c.company_name, s.name`,
     params
   );
-  const byAccount = new Map<string, Array<{ id: string; company_name: string }>>();
-  for (const x of access) {
-    const key = x.account_id.toLowerCase();
+  const byAccount = new Map<string, AccountDeployment[]>();
+  for (const { account_id, ...dep } of access) {
+    const key = account_id.toLowerCase();
     if (!byAccount.has(key)) byAccount.set(key, []);
-    byAccount.get(key)!.push({ id: x.client_id, company_name: x.company_name });
+    byAccount.get(key)!.push(dep);
   }
 
   return rows.map((r) => ({
@@ -90,21 +93,26 @@ async function loadAccounts(where: string, params: Record<string, any>): Promise
     has_password: r.has_password === 1,
     is_active: bool(r.is_active),
     notes: r.notes,
-    companies: byAccount.get(r.id.toLowerCase()) || [],
+    deployments: byAccount.get(r.id.toLowerCase()) || [],
     created_at: r.created_at,
     updated_at: r.updated_at,
   }));
 }
 
-export async function listAccounts(filter: { server_id?: string; client_id?: string; employee_id?: string; q?: string }) {
+export async function listAccounts(filter: { server_id?: string; client_id?: string; deployment_id?: string; employee_id?: string; q?: string }) {
   await requireDb();
   const where: string[] = ["1 = 1"];
   const params: Record<string, any> = {};
   if (filter.server_id) { where.push("a.server_id = @server_id"); params.server_id = filter.server_id; }
   if (filter.employee_id) { where.push("a.employee_id = @employee_id"); params.employee_id = filter.employee_id; }
   if (filter.client_id) {
-    where.push("a.id IN (SELECT account_id FROM server_account_access WHERE client_id = @client_id)");
+    where.push(`a.id IN (SELECT x.account_id FROM server_account_deployments x
+                          JOIN client_deployments d ON d.id = x.deployment_id WHERE d.client_id = @client_id)`);
     params.client_id = filter.client_id;
+  }
+  if (filter.deployment_id) {
+    where.push("a.id IN (SELECT account_id FROM server_account_deployments WHERE deployment_id = @deployment_id)");
+    params.deployment_id = filter.deployment_id;
   }
   if (filter.q) {
     where.push("(a.username LIKE @q OR e.full_name LIKE @q)");
@@ -223,26 +231,28 @@ export async function deleteEmployee(id: string): Promise<{ deleted: boolean; na
 // Server accounts
 // ---------------------------------------------------------------------------
 
-/** Companies deployed on a server = the ones an account on that server can be given. */
-export async function companiesOnServer(serverId: string) {
+/** Deployments on a server = what an account on that server can be given access to. */
+export async function deploymentsOnServer(serverId: string): Promise<AccountDeployment[]> {
   await requireDb();
-  return query<{ id: string; company_name: string }>(
-    `SELECT DISTINCT c.id, c.company_name
-       FROM client_deployments d JOIN clients c ON c.id = d.client_id
+  return query<AccountDeployment>(
+    `SELECT d.id, c.id AS client_id, c.company_name, s.name AS solution_name,
+            d.database_name, d.environment, d.instance_url
+       FROM client_deployments d
+       JOIN clients c   ON c.id = d.client_id
+       JOIN solutions s ON s.id = d.solution_id
       WHERE d.server_id = @server_id
-      ORDER BY c.company_name`,
+      ORDER BY c.company_name, s.name, d.database_name`,
     { server_id: serverId }
   );
 }
 
-async function checkCompanies(serverId: string, clientIds: unknown): Promise<string[]> {
-  if (clientIds === undefined) return [];
-  if (!Array.isArray(clientIds)) throw new RuleError("client_ids must be a list");
-  const wanted = [...new Set(clientIds.map((x) => String(x).toLowerCase()))];
+async function checkDeployments(serverId: string, deploymentIds: unknown): Promise<string[]> {
+  if (deploymentIds === undefined) return [];
+  if (!Array.isArray(deploymentIds)) throw new RuleError("deployment_ids must be a list");
+  const wanted = [...new Set(deploymentIds.map((x) => String(x).toLowerCase()))];
   if (!wanted.length) return [];
-  const allowed = new Set((await companiesOnServer(serverId)).map((c) => c.id.toLowerCase()));
-  const bad = wanted.filter((id) => !allowed.has(id));
-  if (bad.length) throw new RuleError("Some selected companies are not deployed on this server");
+  const allowed = new Set((await deploymentsOnServer(serverId)).map((d) => d.id.toLowerCase()));
+  if (wanted.some((id) => !allowed.has(id))) throw new RuleError("Some selected deployments are not on this server");
   return wanted;
 }
 
@@ -263,7 +273,7 @@ export async function createAccount(body: any): Promise<ServerAccount> {
   if (!emp.length) throw new RuleError("Employee not found", 404);
   const srv = await query<{ server_name: string }>("SELECT server_name FROM servers WHERE id = @id", { id: server_id });
   if (!srv.length) throw new RuleError("Server not found", 404);
-  const companies = await checkCompanies(server_id, body?.client_ids);
+  const deployments = await checkDeployments(server_id, body?.deployment_ids);
 
   const password = typeof body?.password === "string" && body.password !== "" ? body.password : null;
   const id = crypto.randomUUID();
@@ -275,8 +285,8 @@ export async function createAccount(body: any): Promise<ServerAccount> {
         { id, employee_id, server_id, username, password_enc: password ? encrypt(password) : null,
           is_active: body?.is_active === undefined || bool(body.is_active) ? 1 : 0, notes: clean(body?.notes, 4000) ?? null }
       );
-      for (const client_id of companies) {
-        await run("INSERT INTO server_account_access (account_id, client_id) VALUES (@id, @client_id)", { id, client_id });
+      for (const deployment_id of deployments) {
+        await run("INSERT INTO server_account_deployments (account_id, deployment_id) VALUES (@id, @deployment_id)", { id, deployment_id });
       }
     });
   } catch (err) {
@@ -288,7 +298,7 @@ export async function createAccount(body: any): Promise<ServerAccount> {
 
 /**
  * Update an account. password: undefined = keep, "" = keep, a value = replace;
- * clear_password: true removes it. client_ids (if given) replaces the company list.
+ * clear_password: true removes it. deployment_ids (if given) replaces the access list.
  */
 export async function updateAccount(id: string, body: any): Promise<ServerAccount | null> {
   await requireDb();
@@ -303,9 +313,9 @@ export async function updateAccount(id: string, body: any): Promise<ServerAccoun
     const srv = await query("SELECT id FROM servers WHERE id = @id", { id: server_id });
     if (!srv.length) throw new RuleError("Server not found", 404);
   }
-  // Moving to another server: companies must be re-checked against the new server
-  const companies = body?.client_ids !== undefined || serverChanged
-    ? await checkCompanies(server_id, body?.client_ids ?? [])
+  // Moving to another server: access must be re-checked against the new server
+  const deployments = body?.deployment_ids !== undefined || serverChanged
+    ? await checkDeployments(server_id, body?.deployment_ids ?? [])
     : undefined;
 
   const username = body?.username === undefined ? undefined : clean(body.username, 150);
@@ -326,10 +336,10 @@ export async function updateAccount(id: string, body: any): Promise<ServerAccoun
   try {
     await inTransaction(async (run) => {
       if (sets.length) await run(`UPDATE server_accounts SET ${sets.join(", ")} WHERE id = @id`, params);
-      if (companies !== undefined) {
-        await run("DELETE FROM server_account_access WHERE account_id = @id", { id });
-        for (const client_id of companies) {
-          await run("INSERT INTO server_account_access (account_id, client_id) VALUES (@id, @client_id)", { id, client_id });
+      if (deployments !== undefined) {
+        await run("DELETE FROM server_account_deployments WHERE account_id = @id", { id });
+        for (const deployment_id of deployments) {
+          await run("INSERT INTO server_account_deployments (account_id, deployment_id) VALUES (@id, @deployment_id)", { id, deployment_id });
         }
       }
     });

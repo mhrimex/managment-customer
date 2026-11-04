@@ -6,9 +6,9 @@ Microsoft SQL Server 2016 or newer (Express is fine).
 FILES
   full-database.sql      ONE script that creates EVERYTHING:
                            database client_management_db
-                           8 tables, indexes, updated_at triggers
-                           view  vw_deployment_details
-                           6 stored procedures (reports / maintenance)
+                           11 tables, indexes, updated_at triggers
+                           views vw_deployment_details, vw_server_account_access
+                           7 stored procedures (reports / maintenance)
                            2 default staff accounts
                          Safe to run again: only adds what is missing, never deletes data.
   create-app-login.sql   recommended: a SQL login just for this app (instead of "sa")
@@ -31,6 +31,7 @@ STORED PROCEDURES
   EXEC sp_search @term = N'acme';
   EXEC sp_get_client_summary @client_id = '<client guid>';
   EXEC sp_get_server_usage;
+  EXEC sp_find_username @username = N'mohamad1';
   EXEC sp_purge_old_audit_logs @keep_days = 365;
 
 BACKUPS

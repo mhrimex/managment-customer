@@ -14,7 +14,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
     const account = await updateAccount(id, body);
     if (!account) return NextResponse.json({ success: false, error: "Account not found" }, { status: 404 });
     const pw = body?.clear_password ? "; password removed" : body?.password ? "; password changed" : "";
-    const access = account.companies.map((c) => c.company_name).join(", ") || "none";
+    const access = account.deployments.map((d) => `${d.company_name} ${d.solution_name}`).join(", ") || "none";
     await logAuditEvent({
       user_id: user?.id,
       user_email: user?.email || "unknown",

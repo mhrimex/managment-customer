@@ -48,7 +48,7 @@ export default function EmployeesPage() {
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Employees</h1>
           <p className="text-base text-slate-400 mt-2">
-            People who use the systems on your servers, their usernames on each server, and the companies they can open
+            People who use the systems on your servers, their usernames on each server, and what they can open
           </p>
         </div>
         <button
@@ -134,9 +134,9 @@ export default function EmployeesPage() {
                       <ServerIcon size={14} className="text-sky-400 shrink-0" />
                       <span className="text-slate-300 truncate max-w-[40%]">{a.server_name}</span>
                       <span className="font-mono font-semibold text-teal-300 truncate">{a.username}</span>
-                      <span className="ml-auto flex items-center gap-1 text-xs text-slate-400 shrink-0" title={a.companies.map((c) => c.company_name).join(", ")}>
+                      <span className="ml-auto flex items-center gap-1 text-xs text-slate-400 shrink-0" title={a.deployments.map((d) => `${d.company_name} – ${d.solution_name}`).join(", ")}>
                         <Building2 size={13} />
-                        {a.companies.length}
+                        {a.deployments.length}
                       </span>
                     </div>
                   ))

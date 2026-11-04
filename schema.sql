@@ -278,8 +278,9 @@ GO
 
 -- ---------------------------------------------------------------------
 -- 5. EMPLOYEES & SERVER ACCOUNTS
---    Employees -> their login on each server -> the companies that login can open.
---    The same username may exist on different servers (unique per server).
+--    Employees -> their login on each server -> the deployments that login can open
+--    (company + solution + database). The same username may exist on different
+--    servers (unique per server).
 -- ---------------------------------------------------------------------
 
 -- Table: employees (people who log in to the systems hosted on your servers)
@@ -301,11 +302,13 @@ CREATE TABLE employees (
 GO
 
 -- Table: server_accounts (one login on one server; the same username may exist on other servers)
+-- server_id has no cascade: SQL Server forbids a second cascade path to
+-- server_account_deployments, so the app deletes a server's accounts itself.
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='server_accounts' AND xtype='U')
 CREATE TABLE server_accounts (
     id           UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     employee_id  UNIQUEIDENTIFIER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-    server_id    UNIQUEIDENTIFIER NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+    server_id    UNIQUEIDENTIFIER NOT NULL CONSTRAINT fk_server_accounts_server REFERENCES servers(id),
     username     NVARCHAR(150) NOT NULL,
     password_enc NVARCHAR(MAX) NULL,          -- AES-256-GCM, same as the vault
     is_active    BIT NOT NULL DEFAULT 1,
@@ -316,14 +319,44 @@ CREATE TABLE server_accounts (
 );
 GO
 
--- Table: server_account_access (which companies an account can open on its server)
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='server_account_access' AND xtype='U')
-CREATE TABLE server_account_access (
-    account_id  UNIQUEIDENTIFIER NOT NULL REFERENCES server_accounts(id) ON DELETE CASCADE,
-    client_id   UNIQUEIDENTIFIER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-    created_at  DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    PRIMARY KEY (account_id, client_id)
+-- Upgrade: older databases had ON DELETE CASCADE on server_accounts.server_id
+DECLARE @fk SYSNAME;
+SELECT @fk = fk.name
+  FROM sys.foreign_keys fk
+  JOIN sys.foreign_key_columns fc ON fc.constraint_object_id = fk.object_id
+  JOIN sys.columns c ON c.object_id = fc.parent_object_id AND c.column_id = fc.parent_column_id
+ WHERE fk.parent_object_id = OBJECT_ID('server_accounts') AND c.name = 'server_id' AND fk.delete_referential_action <> 0;
+IF @fk IS NOT NULL
+BEGIN
+    EXEC('ALTER TABLE server_accounts DROP CONSTRAINT [' + @fk + ']');
+    EXEC('ALTER TABLE server_accounts ADD CONSTRAINT fk_server_accounts_server FOREIGN KEY (server_id) REFERENCES servers(id)');
+END;
+GO
+
+-- Table: server_account_deployments (which deployments an account can open:
+-- one company + solution + database on the account's server)
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='server_account_deployments' AND xtype='U')
+CREATE TABLE server_account_deployments (
+    account_id    UNIQUEIDENTIFIER NOT NULL REFERENCES server_accounts(id) ON DELETE CASCADE,
+    deployment_id UNIQUEIDENTIFIER NOT NULL REFERENCES client_deployments(id) ON DELETE CASCADE,
+    created_at    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    PRIMARY KEY (account_id, deployment_id)
 );
+GO
+
+-- Upgrade: access used to be per company. Keep it: an account that had a company
+-- gets all of that company's deployments on the account's server.
+IF OBJECT_ID('server_account_access', 'U') IS NOT NULL
+BEGIN
+    EXEC('INSERT INTO server_account_deployments (account_id, deployment_id)
+          SELECT DISTINCT x.account_id, d.id
+            FROM server_account_access x
+            JOIN server_accounts a    ON a.id = x.account_id
+            JOIN client_deployments d ON d.client_id = x.client_id AND d.server_id = a.server_id
+           WHERE NOT EXISTS (SELECT 1 FROM server_account_deployments n
+                              WHERE n.account_id = x.account_id AND n.deployment_id = d.id)');
+    DROP TABLE server_account_access;
+END;
 GO
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_employees_full_name')
@@ -334,8 +367,8 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_server_accounts_employe
     CREATE INDEX idx_server_accounts_employee_id ON server_accounts(employee_id);
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_server_accounts_username')
     CREATE INDEX idx_server_accounts_username ON server_accounts(username);
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_server_account_access_client_id')
-    CREATE INDEX idx_server_account_access_client_id ON server_account_access(client_id);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_server_account_deployments_deployment')
+    CREATE INDEX idx_server_account_deployments_deployment ON server_account_deployments(deployment_id);
 GO
 
 CREATE OR ALTER TRIGGER trg_employees_updated_at
@@ -353,6 +386,60 @@ BEGIN
     SET NOCOUNT ON;
     UPDATE server_accounts SET updated_at = SYSUTCDATETIME()
     WHERE id IN (SELECT id FROM inserted);
+END;
+GO
+
+-- One row per (employee, server account, deployment it can open)
+CREATE OR ALTER VIEW vw_server_account_access AS
+SELECT
+    e.id            AS employee_id,
+    e.full_name     AS employee_name,
+    e.job_title,
+    e.is_active     AS employee_active,
+    a.id            AS account_id,
+    a.username,
+    a.is_active     AS account_active,
+    sv.id           AS server_id,
+    sv.server_name,
+    sv.ip_address   AS server_ip,
+    d.id            AS deployment_id,
+    c.id            AS client_id,
+    c.company_name,
+    s.name          AS solution_name,
+    d.database_name,
+    d.environment
+FROM server_accounts a
+JOIN employees e  ON e.id  = a.employee_id
+JOIN servers   sv ON sv.id = a.server_id
+LEFT JOIN server_account_deployments x ON x.account_id = a.id
+LEFT JOIN client_deployments d ON d.id = x.deployment_id
+LEFT JOIN clients   c ON c.id = d.client_id
+LEFT JOIN solutions s ON s.id = d.solution_id;
+GO
+
+-- Where does a username exist, and what can it open on each server?
+CREATE OR ALTER PROCEDURE sp_find_username
+    @username NVARCHAR(150)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- (FOR XML PATH instead of STRING_AGG keeps this working on SQL Server 2016)
+    SELECT sv.server_name, sv.ip_address AS server_ip, a.username, e.full_name AS employee_name,
+           a.is_active AS account_active,
+           STUFF((SELECT N', ' + c.company_name + N' - ' + s.name
+                         + COALESCE(N' (' + d.database_name + N')', N'')
+                    FROM server_account_deployments x
+                    JOIN client_deployments d ON d.id = x.deployment_id
+                    JOIN clients c   ON c.id = d.client_id
+                    JOIN solutions s ON s.id = d.solution_id
+                   WHERE x.account_id = a.id
+                   ORDER BY c.company_name, s.name
+                   FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, N'') AS can_open
+    FROM server_accounts a
+    JOIN employees e  ON e.id  = a.employee_id
+    JOIN servers   sv ON sv.id = a.server_id
+    WHERE a.username = @username
+    ORDER BY sv.server_name;
 END;
 GO
 
@@ -484,50 +571,6 @@ BEGIN
     LEFT JOIN client_deployments d ON d.server_id = sv.id
     GROUP BY sv.id, sv.server_name, sv.provider, sv.ip_address, sv.server_type
     ORDER BY deployments DESC, sv.server_name;
-END;
-GO
-
--- One row per (employee, server account, company it can open)
-CREATE OR ALTER VIEW vw_server_account_access AS
-SELECT
-    e.id            AS employee_id,
-    e.full_name     AS employee_name,
-    e.job_title,
-    e.is_active     AS employee_active,
-    a.id            AS account_id,
-    a.username,
-    a.is_active     AS account_active,
-    sv.id           AS server_id,
-    sv.server_name,
-    sv.ip_address   AS server_ip,
-    c.id            AS client_id,
-    c.company_name
-FROM server_accounts a
-JOIN employees e  ON e.id  = a.employee_id
-JOIN servers   sv ON sv.id = a.server_id
-LEFT JOIN server_account_access x ON x.account_id = a.id
-LEFT JOIN clients c ON c.id = x.client_id;
-GO
-
--- Where does a username exist, and which companies can it open on each server?
-CREATE OR ALTER PROCEDURE sp_find_username
-    @username NVARCHAR(150)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    -- (FOR XML PATH instead of STRING_AGG keeps this working on SQL Server 2016)
-    SELECT sv.server_name, sv.ip_address AS server_ip, a.username, e.full_name AS employee_name,
-           a.is_active AS account_active,
-           STUFF((SELECT N', ' + c.company_name
-                    FROM server_account_access x JOIN clients c ON c.id = x.client_id
-                   WHERE x.account_id = a.id
-                   ORDER BY c.company_name
-                   FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, N'') AS companies
-    FROM server_accounts a
-    JOIN employees e  ON e.id  = a.employee_id
-    JOIN servers   sv ON sv.id = a.server_id
-    WHERE a.username = @username
-    ORDER BY sv.server_name;
 END;
 GO
 
