@@ -53,6 +53,9 @@ body {
   font-family: var(--app-font, var(--font-inter)), Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-feature-settings: "cv11", "ss01", "ss03"; /* Inter: single-storey a, open digits */
   min-height: 100vh;
+  /* Phone on its side: keep content clear of the notch (viewport-fit=cover in layout.tsx) */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
   line-height: 1.6;
   letter-spacing: -0.006em;
   transition: background-color 0.2s ease, color 0.2s ease;

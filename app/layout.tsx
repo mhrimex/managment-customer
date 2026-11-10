@@ -38,12 +38,18 @@ export const metadata: Metadata = {
   title: "Reflection Solutions - Customer Management",
   description:
     "Production-grade software agency management portal for clients, deployed solutions, infrastructure servers, domains, licenses, and support agreements.",
+  applicationName: "Customers",
+  // iPhone/iPad "Add to Home Screen": opens full screen, without Safari's bars
+  appleWebApp: { capable: true, title: "Customers", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
 };
 
 // "dark light" tells phone browsers (Samsung Internet dark mode, Chrome "darken
 // websites") that the app has its own themes, so they don't force-darken it.
 export const viewport: Viewport = {
   colorScheme: "dark light",
+  // Use the whole screen on notched phones; the safe-area paddings keep content clear
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -81,6 +87,10 @@ export default function RootLayout({
                   if (/^--(app-|accent)/.test(name)) root.style.setProperty(name, look[name]);
                 }
               } catch (e) {}
+              // Lets Android offer "Install app" (public/sw.js caches nothing)
+              if ('serviceWorker' in navigator) {
+                addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
+              }
             `,
           }}
         />

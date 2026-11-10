@@ -177,10 +177,10 @@ export default function ClientsPage() {
                   )}
 
                   {client.phone_primary && (
-                    <div className="flex items-center justify-between text-slate-300">
-                      <div className="flex items-center gap-2 font-mono">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-slate-300">
+                      <div className="flex items-center gap-2 font-mono min-w-0">
                         <Phone size={16} className="text-slate-500 shrink-0" />
-                        <span>{client.phone_primary}</span>
+                        <span className="whitespace-nowrap">{client.phone_primary}</span>
                         <CopyButton text={client.phone_primary} />
                       </div>
 
@@ -189,7 +189,7 @@ export default function ClientsPage() {
                         href={`https://wa.me/${cleanPhone(client.phone_primary)}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-1 px-2 rounded bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                        className="shrink-0 p-1 px-2 rounded bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 text-[11px] font-semibold flex items-center gap-1 transition-colors"
                         title="Chat on WhatsApp"
                       >
                         <MessageSquare size={11} />

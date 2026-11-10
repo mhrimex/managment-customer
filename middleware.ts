@@ -17,6 +17,8 @@ function isPublicAsset(pathname: string) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/static") ||
     pathname === "/favicon.ico" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
     /\.(svg|png|jpe?g|gif|webp|ico|woff2?)$/i.test(pathname)
   );
 }

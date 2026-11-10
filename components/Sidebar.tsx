@@ -146,7 +146,10 @@ export default function Sidebar({
   const renderContent = (mobile: boolean) => (
     <div className="flex flex-col h-full bg-slate-950 border-r border-slate-800/80 w-[18.5rem] max-w-[85vw] select-none">
       {/* Brand Header */}
-      <div className="px-5 py-5 sm:py-6 border-b border-slate-800/80 flex items-center justify-between gap-2">
+      <div
+        className="px-5 py-5 sm:py-6 border-b border-slate-800/80 flex items-center justify-between gap-2"
+        style={mobile ? { paddingTop: "max(1.25rem, calc(env(safe-area-inset-top) + 0.75rem))" } : undefined}
+      >
         <Link
           href="/"
           onClick={go(mobile)}
@@ -277,7 +280,7 @@ export default function Sidebar({
 
   return (
     <>
-      <aside className="hidden md:flex shrink-0 h-screen sticky top-0 z-30">
+      <aside className="hidden xl:flex shrink-0 h-screen sticky top-0 z-30">
         {renderContent(false)}
       </aside>
 
@@ -293,7 +296,7 @@ function MobileDrawer({ onClose, children }: { onClose: () => void; children: Re
   const tryClose = useDismissable(onClose);
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm md:hidden flex"
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm xl:hidden flex"
       onClick={tryClose}
     >
       <div

@@ -210,13 +210,13 @@ export default function ServersPage() {
                           key={d.id}
                           className="p-2 rounded-lg bg-slate-950/40 border border-slate-800/60 flex items-center justify-between text-xs"
                         >
-                          <div className="truncate pr-2">
-                            <span className="font-medium text-slate-200">
+                          <div className="min-w-0 pr-2">
+                            <div className="font-medium text-slate-200 truncate">
                               {d.client?.company_name || "Client"}
-                            </span>
-                            <span className="text-slate-500 text-[11px] ml-1.5">
-                              ({d.solution?.name})
-                            </span>
+                            </div>
+                            <div className="text-slate-500 text-[11px] truncate">
+                              {d.solution?.name}
+                            </div>
                           </div>
                           {d.instance_url && (
                             <span className="font-mono text-[11px] text-indigo-300 truncate max-w-[140px]">

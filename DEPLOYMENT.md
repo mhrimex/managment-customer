@@ -164,6 +164,17 @@ You also need to run it after changing **`NEXT_PUBLIC_*`** settings in `.env`, b
 | Solutions catalog | **Solutions** page |
 | Backup / restore / reset data | **Maintenance** page |
 
+### Install on a phone or iPad
+
+The site can be added to the home screen and then opens full screen, like an app.
+
+| Device | How |
+|---|---|
+| iPhone / iPad | Open the site in **Safari** → Share button → **Add to Home Screen** |
+| Android | Open the site in **Chrome** → ⋮ menu → **Install app** (or **Add to Home screen**) |
+
+Android only offers a real **Install app** when the site is opened over **https://**. Over plain http it adds a shortcut that opens in the browser. iPhone and iPad work over both. Nothing is stored on the device: the app still needs a connection to the server, and shows "You're offline" without one. Files: `app/manifest.ts`, `public/sw.js`, `public/icons/`, `app/apple-icon.png`.
+
 ### Files, if you need to change code
 
 | File | Purpose |

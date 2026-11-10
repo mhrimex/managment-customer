@@ -282,10 +282,10 @@ export default function ClientDetailPage({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
             onClick={() => openEditClient(client)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors whitespace-nowrap"
           >
             <Edit3 size={14} />
             <span>Edit Profile</span>
@@ -293,7 +293,7 @@ export default function ClientDetailPage({
 
           <button
             onClick={() => openNewDeployment(client.id)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all whitespace-nowrap"
           >
             <PlusCircle size={15} />
             <span>Deploy New Solution</span>
@@ -302,7 +302,7 @@ export default function ClientDetailPage({
       </div>
 
       {/* Client Quick Contact & SLA Info Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {/* Contact details */}
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 glass-panel space-y-4">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -321,10 +321,10 @@ export default function ClientDetailPage({
             <div>
               <span className="text-slate-400 text-[11px] block">Official Email:</span>
               {client.email ? (
-                <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
                   <a
                     href={`mailto:${client.email}`}
-                    className="text-indigo-400 hover:underline flex items-center gap-1 font-mono"
+                    className="text-indigo-400 hover:underline flex items-center gap-1 font-mono min-w-0 break-all"
                   >
                     <Mail size={12} />
                     {client.email}
@@ -340,8 +340,8 @@ export default function ClientDetailPage({
             <div>
               <span className="text-slate-400 text-[11px] block">Primary Phone:</span>
               {client.phone_primary ? (
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="font-mono text-slate-200 font-medium">
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <span className="font-mono text-slate-200 font-medium whitespace-nowrap">
                     {client.phone_primary}
                   </span>
                   <CopyButton text={client.phone_primary} />
@@ -411,7 +411,7 @@ export default function ClientDetailPage({
         </div>
 
         {/* SLA Notes & Account Context */}
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 glass-panel space-y-4">
+        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 glass-panel space-y-4 md:col-span-2 xl:col-span-1">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <FileText size={14} className="text-amber-400" />
             Support Agreement & Notes

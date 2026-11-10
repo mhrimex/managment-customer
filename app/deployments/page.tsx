@@ -678,7 +678,7 @@ function DeploymentsTableContent() {
         </div>
 
         {/* Phone layout: one card per deployment */}
-        <div className="md:hidden divide-y divide-slate-800/80">
+        <div className="xl:hidden divide-y divide-slate-800/80">
           {loading && deployments.length === 0 ? (
             <div className="p-5 space-y-4">
               {[0, 1, 2].map((i) => (
@@ -763,7 +763,7 @@ function DeploymentsTableContent() {
           )}
         </div>
 
-        <div className="hidden md:block overflow-x-auto">
+        <div className="hidden xl:block overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (

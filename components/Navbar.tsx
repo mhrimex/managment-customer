@@ -83,12 +83,12 @@ export default function Navbar({
   const expiringCount = metrics ? metrics.expiring_30_days + metrics.expired_licenses : 0;
 
   return (
-    <header className="sticky top-0 z-20 h-[4.5rem] bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-4 md:px-7 lg:px-10 flex items-center justify-between gap-2 sm:gap-4">
+    <header className="sticky top-0 z-20 h-[calc(4.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-4 md:px-7 lg:px-10 flex items-center justify-between gap-2 sm:gap-4">
       {/* Left section: mobile hamburger & search bar */}
       <div className="flex items-center gap-1.5 sm:gap-3 flex-1 min-w-0 max-w-2xl">
         <button
           onClick={onOpenMobileMenu}
-          className="shrink-0 w-11 h-11 inline-flex items-center justify-center text-slate-300 hover:text-white rounded-xl hover:bg-slate-900 md:hidden"
+          className="shrink-0 w-11 h-11 inline-flex items-center justify-center text-slate-300 hover:text-white rounded-xl hover:bg-slate-900 xl:hidden"
           aria-label="Open Navigation Menu"
         >
           <Menu size={24} />
