@@ -3,6 +3,7 @@ import { updateSolution, deleteSolution, SOLUTION_CATEGORIES } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { refuseDelete } from "@/lib/api-errors";
+import { checkSolution } from "@/lib/checks";
 
 export async function PUT(
   request: NextRequest,
@@ -19,6 +20,9 @@ export async function PUT(
     if (body.category && !SOLUTION_CATEGORIES.includes(body.category)) {
       return NextResponse.json({ success: false, error: "Invalid solution category" }, { status: 400 });
     }
+
+    const duplicate = await checkSolution(body.name, id);
+    if (duplicate) return NextResponse.json({ success: false, error: duplicate }, { status: 400 });
 
     const updated = await updateSolution(id, body);
     if (!updated) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRevealError } from "@/components/useRevealError";
 import React, { useEffect, useState } from "react";
 import ModalShell, { ModalCloseButton } from "@/components/ModalShell";
 import { Save, AlertCircle, UserRound } from "lucide-react";
@@ -24,6 +25,7 @@ export default function EmployeeModal({
   const isEditing = !!employeeToEdit;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useRevealError(error);
   const [clients, setClients] = useState<Client[]>([]);
 
   const [fullName, setFullName] = useState("");
@@ -105,7 +107,7 @@ export default function EmployeeModal({
 
       <form onSubmit={handleSubmit} className="overflow-y-auto overscroll-contain min-h-0 flex-1 px-5 sm:px-7 pt-5 sm:pt-6 space-y-5">
         {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-center gap-2">
+          <div ref={errorRef} className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-center gap-2">
             <AlertCircle size={16} className="shrink-0" />
             <span>{error}</span>
           </div>

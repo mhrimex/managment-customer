@@ -35,6 +35,18 @@ export function verifyPassword(password: string, storedHash: string): boolean {
   }
 }
 
+/** The passwords of the two default staff accounts (schema.sql). Signing in with one forces a change. */
+export const DEFAULT_PASSWORDS = ["Admin123!", "Support123!"];
+
+/** Rules for a new staff password. Returns the problem to show, or null when it is fine. */
+export function newPasswordProblem(password: string, current?: string): string | null {
+  if (password.length < 8) return "The new password must be at least 8 characters long.";
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return "The new password needs at least one letter and one number.";
+  if (DEFAULT_PASSWORDS.some((d) => d.toLowerCase() === password.toLowerCase())) return "Choose a password that is not one of the default passwords.";
+  if (current !== undefined && password === current) return "The new password must be different from the current one.";
+  return null;
+}
+
 // =====================================================================
 // Session Token (HMAC-SHA256 Signed JSON Token)
 // =====================================================================
@@ -73,6 +85,7 @@ export function verifySessionToken(token: string): SessionUser | null {
       name: payload.name,
       email: payload.email,
       role: payload.role,
+      must_change_password: payload.must_change_password === true,
     };
   } catch {
     return null;

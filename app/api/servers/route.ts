@@ -3,6 +3,7 @@ import { getServers, createServer } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { validateServerBody } from "@/lib/server-validation";
+import { checkServer } from "@/lib/checks";
 
 export async function GET() {
   try {
@@ -24,9 +25,18 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    const { data, error } = validateServerBody(await request.json(), false);
+    const body = await request.json();
+    const { data, error } = validateServerBody(body, false);
     if (error || !data) {
       return NextResponse.json({ success: false, error }, { status: 400 });
+    }
+    const check = await checkServer(data);
+    if (check.error) return NextResponse.json({ success: false, error: check.error }, { status: 400 });
+    if (check.ipInUse && !body.allow_same_ip) {
+      return NextResponse.json(
+        { success: false, code: "SAME_IP", error: `${check.ipInUse} already uses ${data.ip_address}.` },
+        { status: 409 }
+      );
     }
 
     const server = await createServer(data);

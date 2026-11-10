@@ -37,6 +37,7 @@ export interface EdgeSession {
   name: string;
   email: string;
   role: string;
+  must_change_password: boolean;
 }
 
 /** Returns the session payload if the token's HMAC signature is valid and it has not expired. */
@@ -59,7 +60,7 @@ export async function verifySessionTokenEdge(token: string | undefined): Promise
 
     const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(encodedPayload)));
     if (typeof payload.exp !== "number" || Date.now() > payload.exp) return null;
-    return { id: payload.id, name: payload.name, email: payload.email, role: payload.role };
+    return { id: payload.id, name: payload.name, email: payload.email, role: payload.role, must_change_password: payload.must_change_password === true };
   } catch {
     return null;
   }

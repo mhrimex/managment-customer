@@ -1,9 +1,11 @@
 "use client";
 
+import { useRevealError } from "@/components/useRevealError";
 import React, { useEffect, useState } from "react";
 import ModalShell, { ModalCloseButton } from "@/components/ModalShell";
 import { Save, AlertCircle, Server as ServerIcon } from "lucide-react";
 import { Server, ServerType } from "@/types";
+import { useFeedback } from "@/components/Feedback";
 
 interface ServerModalProps {
   isOpen: boolean;
@@ -19,8 +21,10 @@ export default function ServerModal({
   onSuccess,
   serverToEdit,
 }: ServerModalProps) {
+  const { confirm } = useFeedback();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useRevealError(error);
 
   const [serverName, setServerName] = useState("");
   const [provider, setProvider] = useState("AWS");
@@ -61,13 +65,26 @@ export default function ServerModal({
     };
 
     try {
-      const res = await fetch(isEditing ? `/api/servers/${serverToEdit!.id}` : "/api/servers", {
-        method: isEditing ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const send = (body: object) =>
+        fetch(isEditing ? `/api/servers/${serverToEdit!.id}` : "/api/servers", {
+          method: isEditing ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
 
-      const data = await res.json();
+      let res = await send(payload);
+      let data = await res.json();
+      // Two servers can share one public IP (port forwarding): ask, don't block
+      if (res.status === 409 && data.code === "SAME_IP") {
+        const ok = await confirm({
+          title: "Same IP address",
+          message: `${data.error} Save this server with the same IP anyway?`,
+          confirmLabel: "Save anyway",
+        });
+        if (!ok) return;
+        res = await send({ ...payload, allow_same_ip: true });
+        data = await res.json();
+      }
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Failed to save server");
       }
@@ -98,7 +115,7 @@ export default function ServerModal({
 
         <form onSubmit={handleSubmit} className="overflow-y-auto overscroll-contain min-h-0 flex-1 px-5 sm:px-7 pt-5 sm:pt-6 space-y-5">
           {error && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+            <div ref={errorRef} className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
               <AlertCircle size={15} className="shrink-0" />
               <span>{error}</span>
             </div>

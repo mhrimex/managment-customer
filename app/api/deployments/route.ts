@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDeployments, createDeployment } from "@/lib/db";
 import { DeploymentFilterParams } from "@/types";
+import { checkDeployment } from "@/lib/checks";
 
 export async function GET(request: NextRequest) {
   try {
@@ -94,6 +95,11 @@ export async function POST(request: NextRequest) {
         { success: false, error: "client_id and solution_id are required" },
         { status: 400 }
       );
+    }
+
+    const checkError = await checkDeployment(body);
+    if (checkError) {
+      return NextResponse.json({ success: false, error: checkError }, { status: 400 });
     }
 
     const newDeployment = await createDeployment(body);

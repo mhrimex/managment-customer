@@ -106,7 +106,7 @@ DATABASE_URL="Server=localhost;Database=client_management_db;User Id=app_user;Pa
    - registers a Windows startup task named **ClientManagementPortal**, which starts the app with Windows and restarts it within 1 minute if it crashes
    - opens the firewall port, so other PCs on the network can reach the app
    - prints the addresses to open
-6. Sign in with `admin@agency.com` / `Admin123!`. **Change the passwords of both default users** on the **Users** page right away.
+6. Sign in with `admin@agency.com` / `Admin123!`. The app asks for a new password before anything else (the same happens for `support@agency.com` / `Support123!`).
 
 To also load demo data (5 sample clients, servers and deployments), add `-SampleData`. Don't do this on a real system.
 
@@ -221,4 +221,6 @@ The **Maintenance → Export backup** button in the app gives you a JSON snapsho
 | The access form lists only company names, with no solutions | The server still runs an old build (the label reads "Companies this account can open"). Replace `bin` in both IIS sites |
 | "Could not load the deployments" in the access form | The `api` and `application` sites run different versions. Replace `bin` in both |
 | "Can't delete ..." | The item is still in use. The message lists each place: remove those first, then delete it. A deployment must also have the status DECOMMISSIONED |
+| Sent to "Change password" after signing in | That login still uses a default password. Choose a new one (8+ characters, a letter and a number) |
+| "... already exists" when saving | A client, solution or server with that name, or the same deployment (company, solution, server, database, environment), already exists |
 | "Can't change the client, solution or server ..." | Employees have access to that deployment. Untick it on each employee's page first |

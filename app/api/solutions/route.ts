@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSolutions, createSolution, SOLUTION_CATEGORIES } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
+import { checkSolution } from "@/lib/checks";
 
 export async function GET() {
   try {
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest) {
     if (body.category && !SOLUTION_CATEGORIES.includes(body.category)) {
       return NextResponse.json({ success: false, error: "Invalid solution category" }, { status: 400 });
     }
+
+    const duplicate = await checkSolution(name);
+    if (duplicate) return NextResponse.json({ success: false, error: duplicate }, { status: 400 });
 
     const solution = await createSolution({ name, category: body.category, description: body.description });
 

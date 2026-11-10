@@ -40,7 +40,8 @@ export default function AppLayoutClient({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isAuthPage = pathname === "/login";
+  // Full-screen pages without the side menu
+  const isAuthPage = pathname === "/login" || pathname === "/change-password";
 
   // Follow the saved look. The script in app/layout.tsx already applied the last known one
   // before the first paint; this picks up any change an admin has made since.

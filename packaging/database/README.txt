@@ -21,7 +21,7 @@ HOW (SQL Server Management Studio)
       scripts and in api\settings.env.)
   3. Put the same server / login / password in api\settings.env -> DATABASE_URL.
 
-DEFAULT SIGN-IN (change both passwords on the Users page right away)
+DEFAULT SIGN-IN (each one must choose a new password the first time it signs in)
   admin@agency.com   / Admin123!
   support@agency.com / Support123!
 

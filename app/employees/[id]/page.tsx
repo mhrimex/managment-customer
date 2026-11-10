@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Edit3, Trash2, Mail, Phone, Building2, Server as ServerIcon, KeyRound, PlusCircle,
-  Eye, EyeOff, Copy, Check, StickyNote, Briefcase,
+  Eye, EyeOff, Copy, Check, StickyNote, Briefcase, UserMinus, ClipboardList,
 } from "lucide-react";
 import { Employee, ServerAccount } from "@/types";
 import { useFeedback } from "@/components/Feedback";
@@ -14,6 +14,7 @@ import { Skeleton, SkeletonCards } from "@/components/Skeleton";
 import CopyButton from "@/components/CopyButton";
 import EmployeeModal from "@/components/EmployeeModal";
 import ServerAccountModal from "@/components/ServerAccountModal";
+import OffboardModal from "@/components/OffboardModal";
 import { initials } from "@/lib/utils";
 
 export default function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,6 +27,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [offboardOpen, setOffboardOpen] = useState(false);
   const [accountModal, setAccountModal] = useState<{ open: boolean; account: ServerAccount | null }>({ open: false, account: null });
 
   // revealed passwords live only in memory while the page is open
@@ -165,7 +167,17 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            onClick={() => setOffboardOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-sm font-semibold border border-amber-500/30"
+          >
+            {employee.is_active || accounts.some((a) => a.is_active) ? (
+              <><UserMinus size={16} /> Employee leaving</>
+            ) : (
+              <><ClipboardList size={16} /> Removal checklist</>
+            )}
+          </button>
           <button onClick={() => setEditOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold border border-slate-700">
             <Edit3 size={16} /> Edit
           </button>
@@ -303,6 +315,13 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
+      {offboardOpen && (
+        <OffboardModal
+          employee={employee}
+          onClose={() => setOffboardOpen(false)}
+          onDone={(updated) => setEmployee(updated)}
+        />
+      )}
       <EmployeeModal isOpen={editOpen} onClose={() => setEditOpen(false)} onSaved={() => load()} employeeToEdit={employee} />
       <ServerAccountModal
         isOpen={accountModal.open}

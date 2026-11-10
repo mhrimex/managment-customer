@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClientById, updateClient, deleteClient } from "@/lib/db";
 import { validateLogo } from "@/lib/validation";
 import { refuseDelete } from "@/lib/api-errors";
+import { checkClient } from "@/lib/checks";
 
 export async function GET(
   request: NextRequest,
@@ -39,6 +40,13 @@ export async function PUT(
     const logoError = validateLogo(body.logo_url);
     if (logoError) {
       return NextResponse.json({ success: false, error: logoError }, { status: 400 });
+    }
+    if (body.company_name !== undefined && !String(body.company_name).trim()) {
+      return NextResponse.json({ success: false, error: "Company name is required" }, { status: 400 });
+    }
+    const checkError = await checkClient(body, id);
+    if (checkError) {
+      return NextResponse.json({ success: false, error: checkError }, { status: 400 });
     }
 
     const updated = await updateClient(id, body);

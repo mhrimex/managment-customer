@@ -1,5 +1,6 @@
 "use client";
 
+import { useRevealError } from "@/components/useRevealError";
 import React, { useState, useEffect, useRef } from "react";
 import ModalShell, { ModalCloseButton } from "@/components/ModalShell";
 import { Save, AlertCircle, Building2, ImagePlus, Trash2 } from "lucide-react";
@@ -63,6 +64,7 @@ export default function ClientModal({
   const fileInput = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useRevealError(error);
 
   const [companyName, setCompanyName] = useState("");
   const [contactPerson, setContactPerson] = useState("");
@@ -196,7 +198,7 @@ export default function ClientModal({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="overflow-y-auto overscroll-contain min-h-0 flex-1 px-5 sm:px-7 pt-5 sm:pt-6 space-y-5">
           {error && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-center gap-2.5">
+            <div ref={errorRef} className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-center gap-2.5">
               <AlertCircle size={18} className="shrink-0" />
               <span>{error}</span>
             </div>

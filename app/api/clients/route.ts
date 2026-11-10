@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClients, createClient } from "@/lib/db";
 import { validateLogo } from "@/lib/validation";
+import { checkClient } from "@/lib/checks";
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,6 +37,11 @@ export async function POST(request: NextRequest) {
     const logoError = validateLogo(body.logo_url);
     if (logoError) {
       return NextResponse.json({ success: false, error: logoError }, { status: 400 });
+    }
+
+    const checkError = await checkClient(body);
+    if (checkError) {
+      return NextResponse.json({ success: false, error: checkError }, { status: 400 });
     }
 
     const client = await createClient(body);

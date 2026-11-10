@@ -11,6 +11,7 @@
 import { AccessReportRow, AccountDeployment, Employee, OtherDeployment, ServerAccount } from "@/types";
 import { dbAvailable, execute, inTransaction, query } from "@/lib/db";
 import { encrypt, decrypt } from "@/lib/crypto";
+import { emailError, phoneError } from "@/lib/checks";
 
 export class DbUnavailableError extends Error {
   constructor() {
@@ -174,6 +175,8 @@ function employeeFields(body: any, partial: boolean) {
   if (!partial || full_name !== undefined) {
     if (!full_name) throw new RuleError("Employee name is required");
   }
+  const formatError = emailError("Email", body?.email) || phoneError("Phone", body?.phone);
+  if (formatError) throw new RuleError(formatError);
   return {
     full_name,
     job_title: clean(body?.job_title, 150),
@@ -213,6 +216,22 @@ export async function updateEmployee(id: string, body: any): Promise<Employee | 
     if (!n) return null;
   }
   return getEmployee(id);
+}
+
+/**
+ * Employee leaving: mark them inactive and disable every server account they have.
+ * Accounts and their access are kept, so there is a record of what to remove on the real servers.
+ */
+export async function offboardEmployee(id: string): Promise<{ employee: Employee; disabled: number } | null> {
+  await requireDb();
+  const before = await getEmployee(id);
+  if (!before) return null;
+  const disabled = (before.accounts || []).filter((a) => a.is_active).length;
+  await inTransaction(async (run) => {
+    await run("UPDATE employees SET is_active = 0 WHERE id = @id", { id });
+    await run("UPDATE server_accounts SET is_active = 0 WHERE employee_id = @id", { id });
+  });
+  return { employee: (await getEmployee(id))!, disabled };
 }
 
 /** Deletes the employee. The DELETE route refuses first while they still have server accounts. */

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDeploymentById, updateDeployment, deleteDeployment } from "@/lib/db";
 import { refuseDelete } from "@/lib/api-errors";
 import { ACCESS_GROUP, findUsage } from "@/lib/usage";
+import { checkDeployment } from "@/lib/checks";
 
 export async function GET(
   request: NextRequest,
@@ -54,6 +55,11 @@ export async function PUT(
           );
         }
       }
+    }
+
+    if (existing) {
+      const checkError = await checkDeployment({ ...existing, ...body }, id);
+      if (checkError) return NextResponse.json({ success: false, error: checkError }, { status: 400 });
     }
 
     const updated = await updateDeployment(id, body);

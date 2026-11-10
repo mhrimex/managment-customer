@@ -39,6 +39,7 @@ export async function middleware(request: NextRequest) {
     // Page access: the API decides whether the session cookie is valid
     const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
     let signedIn = false;
+    let mustChange = false;
     if (token) {
       try {
         const r = await fetch(apiUrl() + "/api/auth/me", {
@@ -46,12 +47,13 @@ export async function middleware(request: NextRequest) {
           cache: "no-store",
         });
         signedIn = r.ok;
+        if (r.ok) mustChange = (await r.json().catch(() => null))?.user?.must_change_password === true;
       } catch {
         // API unreachable: let the page load; its data calls will show the error
         signedIn = true;
       }
     }
-    return pageGate(request, pathname, signedIn, token);
+    return pageGate(request, pathname, signedIn, token, mustChange);
   }
 
   // ---------------- API-only build ----------------
@@ -73,6 +75,13 @@ export async function middleware(request: NextRequest) {
   const session = await verifySessionTokenEdge(token);
 
   if (pathname.startsWith("/api/")) {
+    // Still on a default password: only signing in/out, changing it and the page look work
+    if (session?.must_change_password && !/^\/api\/(auth\/|appearance$|version$)/.test(pathname)) {
+      return NextResponse.json(
+        { success: false, error: "Change your password first.", must_change_password: true },
+        { status: 403 }
+      );
+    }
     if (session) return NextResponse.next();
     // API callers get a JSON 401 instead of an HTML redirect
     const res = NextResponse.json({ success: false, error: "Authentication required" }, { status: 401 });
@@ -80,7 +89,7 @@ export async function middleware(request: NextRequest) {
     return res;
   }
 
-  return pageGate(request, pathname, !!session, token);
+  return pageGate(request, pathname, !!session, token, !!session?.must_change_password);
 }
 
 /**
@@ -102,7 +111,7 @@ function redirectTo(request: NextRequest, location: string) {
 }
 
 /** Login page / protected page redirects, shared by the "all" and "web" modes. */
-function pageGate(request: NextRequest, pathname: string, signedIn: boolean, token?: string) {
+function pageGate(request: NextRequest, pathname: string, signedIn: boolean, token?: string, mustChange = false) {
   // Login page: signed-in users go straight to the dashboard
   if (pathname === "/login") {
     if (signedIn) return redirectTo(request, "/");
@@ -117,6 +126,9 @@ function pageGate(request: NextRequest, pathname: string, signedIn: boolean, tok
     if (token) res.cookies.delete(AUTH_COOKIE_NAME);
     return res;
   }
+
+  // Signed in with a default password: nothing else until it is changed
+  if (mustChange && pathname !== "/change-password") return redirectTo(request, "/change-password");
 
   return NextResponse.next();
 }

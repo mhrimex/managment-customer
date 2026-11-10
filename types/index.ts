@@ -164,6 +164,8 @@ export interface SessionUser {
   name: string;
   email: string;
   role: UserRole;
+  /** signed in with a default password: must choose a new one before doing anything else */
+  must_change_password?: boolean;
 }
 
 export interface AuditLog {

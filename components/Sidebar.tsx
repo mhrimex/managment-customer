@@ -240,6 +240,9 @@ export default function Sidebar({
                 <div className="text-xs text-indigo-400 uppercase tracking-wide truncate font-bold">
                   {currentUser.role.replace("_", " ")}
                 </div>
+                <Link href="/change-password" onClick={go(mobile)} className="text-xs text-slate-400 hover:text-white hover:underline">
+                  Change password
+                </Link>
               </div>
             </div>
 

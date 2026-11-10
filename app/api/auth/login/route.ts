@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { verifyPassword, createSessionToken, AUTH_COOKIE_NAME } from "@/lib/auth";
+import { verifyPassword, DEFAULT_PASSWORDS } from "@/lib/auth";
+import { setSessionCookie } from "@/lib/session-cookie";
 import { logAuditEvent } from "@/lib/audit";
 import { getUserByEmailOrName } from "@/lib/db";
 import { SessionUser } from "@/types";
@@ -33,27 +33,11 @@ export async function POST(request: NextRequest) {
       name: foundUser.name,
       email: foundUser.email,
       role: foundUser.role,
+      // still on a default password: middleware.ts sends them to /change-password first
+      must_change_password: DEFAULT_PASSWORDS.includes(password),
     };
 
-    const token = createSessionToken(sessionUser);
-
-    // Set HTTP-only Cookie. "Secure" only when the site is actually served over
-    // HTTPS (directly or behind a proxy) — otherwise browsers on other PCs using
-    // http://<server-ip>:3000 would drop the cookie and login would silently fail.
-    // Override with COOKIE_SECURE=true|false in .env.
-    const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0].trim();
-    const isHttps = forwardedProto ? forwardedProto === "https" : request.nextUrl.protocol === "https:";
-    const secure =
-      process.env.COOKIE_SECURE === "true" ? true : process.env.COOKIE_SECURE === "false" ? false : isHttps;
-
-    const cookieStore = await cookies();
-    cookieStore.set(AUTH_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure,
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-      path: "/",
-    });
+    await setSessionCookie(request, sessionUser);
 
     // Log to Audit Trail
     await logAuditEvent({
