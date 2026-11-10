@@ -18,6 +18,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { useFeedback } from "@/components/Feedback";
+import { useSafeDelete } from "@/components/useSafeDelete";
 import { Server, ServerAccount } from "@/types";
 import { useApp } from "@/components/AppLayoutClient";
 import CopyButton from "@/components/CopyButton";
@@ -25,34 +26,20 @@ import { SkeletonCards } from "@/components/Skeleton";
 
 export default function ServersPage() {
   const { openNewServer, openEditServer, refreshTrigger, triggerRefresh } = useApp();
-  const { toast, confirm } = useFeedback();
+  const { toast } = useFeedback();
+  const safeDelete = useSafeDelete();
 
   const handleDelete = async (server: Server) => {
-    const hosted = server.hosted_deployments?.length || 0;
-    const ok = await confirm({
+    const deleted = await safeDelete({
+      kind: "server",
+      id: server.id,
       title: `Delete ${server.server_name}?`,
-      message: [
-        hosted
-          ? `${hosted} deployment(s) are hosted on this server. They will be kept, but will show "no server" until you assign another one.`
-          : "The server will be removed from the infrastructure list.",
-        (() => {
-          const n = accounts.filter((a) => a.server_id.toLowerCase() === server.id.toLowerCase()).length;
-          return n ? `Its ${n} employee account(s) on this server will be deleted.` : "";
-        })(),
-      ].filter(Boolean).join(" "),
+      message: "The server will be removed from the infrastructure list.",
       confirmLabel: "Delete server",
-      danger: true,
     });
-    if (!ok) return;
-    try {
-      const res = await fetch(`/api/servers/${server.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "Failed to delete server");
-      toast(`${server.server_name} was deleted.`);
-      triggerRefresh();
-    } catch (err: any) {
-      toast(err.message || "Failed to delete server", "error");
-    }
+    if (!deleted) return;
+    toast(`${server.server_name} was deleted.`);
+    triggerRefresh();
   };
   const [servers, setServers] = useState<Server[]>([]);
   const [accounts, setAccounts] = useState<ServerAccount[]>([]);

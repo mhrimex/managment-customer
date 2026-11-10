@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Cairo, Inter, JetBrains_Mono, Nunito, Open_Sans, Plus_Jakarta_Sans, Poppins, Roboto } from "next/font/google";
 import "./globals.css";
 import AppLayoutClient from "@/components/AppLayoutClient";
 
@@ -24,6 +24,16 @@ const jetbrains = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
 });
 
+// Choices on the Settings page (lib/appearance.ts). preload: false means a browser only
+// downloads the one in use.
+const roboto = Roboto({ subsets: ["latin"], weight: ["400", "500", "700", "900"], display: "swap", preload: false, variable: "--font-roboto" });
+const openSans = Open_Sans({ subsets: ["latin"], display: "swap", preload: false, variable: "--font-open-sans" });
+const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], display: "swap", preload: false, variable: "--font-poppins" });
+const nunito = Nunito({ subsets: ["latin"], display: "swap", preload: false, variable: "--font-nunito" });
+const cairo = Cairo({ subsets: ["arabic", "latin"], display: "swap", preload: false, variable: "--font-cairo" });
+
+const FONT_VARIABLES = [inter, jakarta, jetbrains, roboto, openSans, poppins, nunito, cairo].map((f) => f.variable).join(" ");
+
 export const metadata: Metadata = {
   title: "Reflection Solutions - Customer Management",
   description:
@@ -44,7 +54,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${inter.variable} ${jakarta.variable} ${jetbrains.variable}`}
+      className={`dark ${FONT_VARIABLES}`}
       suppressHydrationWarning
     >
       <head>
@@ -65,6 +75,11 @@ export default function RootLayout({
                 meta.name = 'theme-color';
                 meta.content = mode === 'dark' ? '#090e1a' : '#f8fafc';
                 document.head.appendChild(meta);
+                // Font size, colour and font saved on the Settings page (lib/appearance.ts)
+                var look = JSON.parse(localStorage.getItem('reflection_appearance') || '{}');
+                for (var name in look) {
+                  if (/^--(app-|accent)/.test(name)) root.style.setProperty(name, look[name]);
+                }
               } catch (e) {}
             `,
           }}

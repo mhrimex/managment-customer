@@ -22,12 +22,14 @@ import { useApp } from "@/components/AppLayoutClient";
 import CopyButton from "@/components/CopyButton";
 import CompanyAvatar from "@/components/CompanyAvatar";
 import { useFeedback } from "@/components/Feedback";
+import { useSafeDelete } from "@/components/useSafeDelete";
 import { SkeletonCards } from "@/components/Skeleton";
 import { formatDate } from "@/lib/utils";
 
 export default function ClientsPage() {
   const { openNewClient, openEditClient, refreshTrigger, triggerRefresh } = useApp();
-  const { toast, confirm } = useFeedback();
+  const { toast } = useFeedback();
+  const safeDelete = useSafeDelete();
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -59,26 +61,17 @@ export default function ClientsPage() {
   }, [search]);
 
   const handleDelete = async (id: string, name: string) => {
-    const ok = await confirm({
+    const deleted = await safeDelete({
+      kind: "company",
+      id,
       title: `Delete ${name}?`,
-      message: "This permanently removes the client and all of its deployments and vault credentials. This cannot be undone.",
+      message: "The client will be removed permanently. This cannot be undone.",
       confirmLabel: "Delete client",
-      danger: true,
     });
-    if (!ok) return;
-    try {
-      const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (data.success) {
-        toast(`${name} was deleted.`);
-        triggerRefresh();
-        fetchClients();
-      } else {
-        toast(data.error || "Failed to delete client", "error");
-      }
-    } catch {
-      toast("Error deleting client", "error");
-    }
+    if (!deleted) return;
+    toast(`${name} was deleted.`);
+    triggerRefresh();
+    fetchClients();
   };
 
   const cleanPhone = (phone?: string | null) => {

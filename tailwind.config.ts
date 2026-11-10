@@ -1,5 +1,14 @@
 import type { Config } from "tailwindcss";
 
+/** A colour family read from CSS variables, so Settings can change it while the site runs. */
+const dynamicColor = (prefix: string) =>
+  Object.fromEntries(
+    [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((shade) => [
+      shade,
+      `rgb(var(--${prefix}-${shade}) / <alpha-value>)`,
+    ])
+  );
+
 const config: Config = {
   darkMode: "class",
   content: [
@@ -10,6 +19,8 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        indigo: dynamicColor("accent"),
+        teal: dynamicColor("accent2"),
         background: "var(--background)",
         foreground: "var(--foreground)",
         border: "var(--border)",
@@ -33,7 +44,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
-          "var(--font-inter)",
+          "var(--app-font, var(--font-inter))",
           "Inter",
           "-apple-system",
           "BlinkMacSystemFont",
@@ -43,7 +54,7 @@ const config: Config = {
           "sans-serif",
         ],
         display: [
-          "var(--font-display)",
+          "var(--app-font, var(--font-display))",
           "Plus Jakarta Sans",
           "var(--font-inter)",
           "system-ui",
@@ -57,7 +68,7 @@ const config: Config = {
           "monospace",
         ],
       },
-      // Root font-size is 17px (see globals.css); values below are relative to it.
+      // Root font-size is 17px by default (Settings can change it); values below are relative to it.
       fontSize: {
         xs: ["0.875rem", { lineHeight: "1.4rem" }],    // ~15px  (smallest UI text)
         sm: ["0.95rem", { lineHeight: "1.55rem" }],    // ~16px

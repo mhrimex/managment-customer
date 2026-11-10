@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateSolution, deleteSolution, SOLUTION_CATEGORIES } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
+import { refuseDelete } from "@/lib/api-errors";
 
 export async function PUT(
   request: NextRequest,
@@ -47,6 +48,8 @@ export async function DELETE(
   try {
     const { id } = await params;
     const user = await getCurrentUser();
+    const refused = await refuseDelete("solution", id);
+    if (refused) return refused;
     const result = await deleteSolution(id);
 
     if (result === "in_use") {

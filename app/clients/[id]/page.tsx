@@ -37,6 +37,8 @@ import RenewalBadge from "@/components/RenewalBadge";
 import CopyButton from "@/components/CopyButton";
 import CompanyAvatar from "@/components/CompanyAvatar";
 import { useFeedback } from "@/components/Feedback";
+import { useSafeDelete } from "@/components/useSafeDelete";
+import DeploymentAccessModal from "@/components/DeploymentAccessModal";
 import { Skeleton, SkeletonCards } from "@/components/Skeleton";
 import { formatDate } from "@/lib/utils";
 
@@ -49,6 +51,7 @@ export default function ClientDetailPage({
   const router = useRouter();
   const { openEditClient, openNewDeployment, openEditDeployment, refreshTrigger, triggerRefresh } = useApp();
   const { toast, confirm } = useFeedback();
+  const safeDelete = useSafeDelete();
 
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,6 +84,8 @@ export default function ClientDetailPage({
   useEffect(() => {
     fetchClient();
   }, [id, refreshTrigger]);
+
+  const [accessFor, setAccessFor] = useState<{ id: string; title: string; serverId: string; serverName: string } | null>(null);
 
   // Employee logins that can open this company (on any server)
   const [access, setAccess] = useState<ServerAccount[]>([]);
@@ -142,26 +147,17 @@ export default function ClientDetailPage({
 
   // Delete Deployment
   const handleDeleteDeployment = async (depId: string, solutionName?: string) => {
-    const ok = await confirm({
+    const deleted = await safeDelete({
+      kind: "deployment",
+      id: depId,
       title: `Delete ${solutionName || "this"} deployment?`,
-      message: "The deployment and its vault credentials will be removed permanently. Employees lose their access to it; their accounts stay.",
+      message: "The deployment will be removed permanently.",
       confirmLabel: "Delete deployment",
-      danger: true,
     });
-    if (!ok) return;
-    try {
-      const res = await fetch(`/api/deployments/${depId}`, { method: "DELETE" });
-      const data = await res.json();
-      if (data.success) {
-        toast("Deployment deleted.");
-        triggerRefresh();
-        fetchClient();
-      } else {
-        toast(data.error || "Failed to delete deployment", "error");
-      }
-    } catch (err) {
-      toast("Failed to delete deployment", "error");
-    }
+    if (!deleted) return;
+    toast("Deployment deleted.");
+    triggerRefresh();
+    fetchClient();
   };
 
   // Add Credential to Vault
@@ -625,10 +621,28 @@ export default function ClientDetailPage({
                   const users = access.filter((a) => a.deployments.some((d) => d.id.toLowerCase() === dep.id.toLowerCase()));
                   return (
                     <div className="pt-2 border-t border-slate-800/80">
-                      <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 mb-2">
-                        <KeyRound size={13} className="text-teal-400" />
-                        Employees with access ({users.length})
-                      </span>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                          <KeyRound size={13} className="text-teal-400" />
+                          Employees with access ({users.length})
+                        </span>
+                        {dep.server && dep.server_id && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAccessFor({
+                                id: dep.id,
+                                title: `${client.company_name} • ${dep.solution?.name || "Solution"}${dep.database_name ? ` • ${dep.database_name}` : ""}`,
+                                serverId: dep.server_id!,
+                                serverName: dep.server!.server_name,
+                              })
+                            }
+                            className="shrink-0 text-xs font-semibold text-teal-400 hover:underline px-1 py-1"
+                          >
+                            Manage access
+                          </button>
+                        )}
+                      </div>
                       {users.length ? (
                         <div className="flex flex-wrap gap-2">
                           {users.map((a) => (
@@ -639,7 +653,12 @@ export default function ClientDetailPage({
                           ))}
                         </div>
                       ) : (
-                        <div className="text-[11px] text-slate-500 italic">No employee can open this deployment yet.</div>
+                        <div className="text-xs text-slate-500">
+                          <span className="italic">No employee can open this deployment yet.</span>{" "}
+                          {!dep.server && (
+                            <span className="text-amber-300/90">Set its Hosting Server first (Edit), then you can give access.</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -729,6 +748,14 @@ export default function ClientDetailPage({
           </div>
         )}
       </div>
+
+      {accessFor && (
+        <DeploymentAccessModal
+          deployment={accessFor}
+          onClose={() => setAccessFor(null)}
+          onSaved={() => triggerRefresh()}
+        />
+      )}
 
       {/* Add Credential Modal Dialog */}
       {isAddCredOpen && (

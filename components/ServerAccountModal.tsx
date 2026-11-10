@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import ModalShell, { ModalCloseButton } from "@/components/ModalShell";
 import { Save, AlertCircle, KeyRound, Eye, EyeOff, Building2 } from "lucide-react";
-import { AccountDeployment, Server, ServerAccount } from "@/types";
+import { AccountDeployment, OtherDeployment, Server, ServerAccount } from "@/types";
 import { useFeedback } from "@/components/Feedback";
 
 const inputCls =
@@ -32,6 +32,8 @@ export default function ServerAccountModal({
   const [servers, setServers] = useState<Server[]>([]);
   const [deployments, setDeployments] = useState<AccountDeployment[]>([]);
   const [deploymentsLoading, setDeploymentsLoading] = useState(false);
+  const [deploymentsError, setDeploymentsError] = useState<string | null>(null);
+  const [others, setOthers] = useState<OtherDeployment[]>([]);
 
   const [serverId, setServerId] = useState("");
   const [username, setUsername] = useState("");
@@ -56,28 +58,46 @@ export default function ServerAccountModal({
     setNotes(accountToEdit?.notes || "");
     fetch("/api/servers")
       .then((r) => r.json())
-      .then((d) => d.success && setServers(d.data))
-      .catch(() => {});
+      .then((d) => {
+        if (d.success) setServers(d.data);
+        else setError(d.error || "Could not load the servers.");
+      })
+      .catch(() => setError("Could not load the servers."));
   }, [isOpen, accountToEdit]);
 
   // What can be ticked = the deployments on the chosen server
   useEffect(() => {
     if (!isOpen || !serverId) {
       setDeployments([]);
+      setOthers([]);
+      setDeploymentsError(null);
       return;
     }
     let cancelled = false;
     setDeploymentsLoading(true);
+    setDeploymentsError(null);
     fetch(`/api/servers/${serverId}/deployments`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (cancelled || !d.success) return;
+      .then(async (r) => {
+        const d = await r.json().catch(() => null);
+        if (cancelled) return;
+        if (!r.ok || !d?.success) {
+          // A failure must not look like "nothing is deployed here"
+          setDeployments([]);
+          setOthers([]);
+          setDeploymentsError(
+            d?.error || "Could not load the deployments. Make sure the API and website sites run the same version."
+          );
+          return;
+        }
         setDeployments(d.data);
+        setOthers(d.others || []);
         // drop ticks for deployments that are not on this server
         const allowed = new Set<string>(d.data.map((x: { id: string }) => x.id.toLowerCase()));
         setSelected((prev) => new Set([...prev].filter((id) => allowed.has(id))));
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setDeploymentsError("Could not reach the API to load the deployments.");
+      })
       .finally(() => !cancelled && setDeploymentsLoading(false));
     return () => {
       cancelled = true;
@@ -236,6 +256,8 @@ export default function ServerAccountModal({
             <p className="text-sm text-slate-500 italic p-3 rounded-xl border border-dashed border-slate-700">Choose a server first.</p>
           ) : deploymentsLoading ? (
             <p className="text-sm text-slate-400 p-3">Loading deployments…</p>
+          ) : deploymentsError ? (
+            <p className="text-sm text-rose-300 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10">{deploymentsError}</p>
           ) : deployments.length === 0 ? (
             <p className="text-sm text-amber-300/90 p-3 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5">
               Nothing is deployed on this server yet. Add a deployment on this server first;
@@ -279,6 +301,33 @@ export default function ServerAccountModal({
                 );
               })}
             </div>
+          )}
+
+          {/* Why a solution is missing from the list above */}
+          {serverId && !deploymentsLoading && !deploymentsError && others.length > 0 && (
+            <details open={deployments.length === 0} className="mt-3 rounded-xl border border-slate-700">
+              <summary className="cursor-pointer select-none px-3.5 py-2.5 text-sm font-medium text-slate-300">
+                Not on this server, can&apos;t be selected ({others.length})
+              </summary>
+              <p className="px-3.5 pb-2 text-xs text-slate-400">
+                To select one here, open it on its company page, choose Edit, and set Hosting Server to this server.
+              </p>
+              <ul className="max-h-52 overflow-y-auto divide-y divide-slate-800 border-t border-slate-800">
+                {others.map((d) => (
+                  <li key={d.id}>
+                    <a href={`/clients/${d.client_id}`} target="_blank" rel="noreferrer" className="block px-3.5 py-2.5 hover:bg-slate-800/50">
+                      <span className="block text-sm text-slate-200 [overflow-wrap:anywhere]">
+                        {d.company_name} • {d.solution_name}
+                      </span>
+                      <span className="block text-xs font-mono [overflow-wrap:anywhere]">
+                        {d.database_name && <span className="text-slate-400">{d.database_name} • </span>}
+                        {d.server_name ? <span className="text-slate-400">on {d.server_name}</span> : <span className="text-amber-300/90">no server set</span>}
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
         </div>
 

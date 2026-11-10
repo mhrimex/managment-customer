@@ -1,8 +1,10 @@
 "use client";
 
-import ModalShell from "@/components/ModalShell";
+import ModalShell, { whenModalHistorySettled } from "@/components/ModalShell";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, ArrowRight, Ban, CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { ItemUsage } from "@/types/usage";
 
 // =====================================================================
 // App-wide feedback: toast notifications + promise-based confirm dialog.
@@ -28,6 +30,7 @@ interface ConfirmOptions {
 interface FeedbackContextType {
   toast: (message: string, type?: ToastType) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
+  showInUse: (usage: ItemUsage) => void;
 }
 
 const FeedbackContext = createContext<FeedbackContextType | null>(null);
@@ -50,6 +53,10 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   const resolver = useRef<((v: boolean) => void) | null>(null);
   const confirmBtn = useRef<HTMLButtonElement>(null);
   const idRef = useRef(0);
+  const router = useRouter();
+  const [inUse, setInUse] = useState<ItemUsage | null>(null);
+  const inUseBtn = useRef<HTMLButtonElement>(null);
+  const showInUse = useCallback((usage: ItemUsage) => setInUse(usage), []);
 
   const dismiss = useCallback((id: number) => {
     setToasts((t) => t.filter((x) => x.id !== id));
@@ -77,13 +84,27 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     setDialog(null);
   }, []);
 
-  // Focus lands on the confirm button (Escape / Back / backdrop are handled by ModalShell)
+  const closeInUse = useCallback(() => setInUse(null), []);
+
+  // Close first: the dialog's history entry must be gone before navigating
+  const openUsageItem = useCallback(
+    (href: string) => {
+      setInUse(null);
+      whenModalHistorySettled().then(() => router.push(href));
+    },
+    [router]
+  );
+
+  // Focus lands on the main button (Escape / Back / backdrop are handled by ModalShell)
   useEffect(() => {
     if (dialog) confirmBtn.current?.focus();
   }, [dialog]);
+  useEffect(() => {
+    if (inUse) inUseBtn.current?.focus();
+  }, [inUse]);
 
   return (
-    <FeedbackContext.Provider value={{ toast, confirm }}>
+    <FeedbackContext.Provider value={{ toast, confirm, showInUse }}>
       {children}
 
       {/* Toast stack */}
@@ -112,6 +133,70 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
           );
         })}
       </div>
+
+      {/* "Can't delete yet" dialog: lists everything that still uses the item */}
+      {inUse && (
+        <ModalShell onClose={closeInUse} size="lg" zIndex={60} labelledBy="in-use-title">
+          <div role="alertdialog" className="flex flex-col min-h-0">
+            <div className="flex items-start gap-4 p-5 sm:p-7 pb-4 sm:pb-4 shrink-0">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 bg-amber-500/15 text-amber-400">
+                <Ban size={24} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 id="in-use-title" className="text-xl font-bold text-white [overflow-wrap:anywhere]">
+                  Can&apos;t delete {inUse.name}
+                </h2>
+                <p className="text-sm text-slate-400 mt-1.5">It is still used by the items below. Remove them first, then delete it.</p>
+              </div>
+            </div>
+            <div className="overflow-y-auto overscroll-contain min-h-0 flex-1 px-5 sm:px-7 space-y-5">
+              {inUse.groups.map((g) => (
+                <section key={g.title}>
+                  <h3 className="text-sm font-bold text-slate-100">
+                    {g.title} ({g.items.length})
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5 mb-2">{g.hint}</p>
+                  <ul className="rounded-xl border border-slate-700 divide-y divide-slate-800 overflow-hidden">
+                    {g.items.map((item, i) => {
+                      const text = (
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-slate-100 [overflow-wrap:anywhere]">{item.label}</span>
+                          {item.detail && <span className="block text-xs font-mono text-slate-400 [overflow-wrap:anywhere]">{item.detail}</span>}
+                        </span>
+                      );
+                      return (
+                        <li key={i}>
+                          {item.href ? (
+                            <button
+                              type="button"
+                              onClick={() => openUsageItem(item.href!)}
+                              className="w-full flex items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-800/60 transition-colors"
+                            >
+                              {text}
+                              <ArrowRight size={16} className="text-slate-500 shrink-0" />
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-3 px-3.5 py-3">{text}</div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
+            </div>
+            <div className="flex justify-end p-5 sm:p-7 pt-4 sm:pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-7 shrink-0">
+              <button
+                ref={inUseBtn}
+                onClick={closeInUse}
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-semibold transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </ModalShell>
+      )}
 
       {/* Confirm dialog */}
       {dialog && (

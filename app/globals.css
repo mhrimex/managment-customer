@@ -6,6 +6,31 @@
   --background: #090e1a;
   --foreground: #f8fafc;
   color-scheme: dark;
+
+  /* Default colours. Settings overrides these on <html> (lib/appearance.ts). */
+  --accent-50: 238 242 255;
+  --accent-100: 224 231 255;
+  --accent-200: 199 210 254;
+  --accent-300: 165 180 252;
+  --accent-400: 129 140 248;
+  --accent-500: 99 102 241;
+  --accent-600: 79 70 229;
+  --accent-700: 67 56 202;
+  --accent-800: 55 48 163;
+  --accent-900: 49 46 129;
+  --accent-950: 30 27 75;
+
+  --accent2-50: 240 253 250;
+  --accent2-100: 204 251 241;
+  --accent2-200: 153 246 228;
+  --accent2-300: 94 234 212;
+  --accent2-400: 45 212 191;
+  --accent2-500: 20 184 166;
+  --accent2-600: 13 148 136;
+  --accent2-700: 15 118 110;
+  --accent2-800: 17 94 89;
+  --accent2-900: 19 78 74;
+  --accent2-950: 4 47 46;
 }
 
 html.light {
@@ -16,7 +41,7 @@ html.light {
 }
 
 html {
-  font-size: 17px; /* Root scale: all rem-based text, spacing and components grow with it */
+  font-size: var(--app-font-size, 17px); /* Root scale: all rem-based text, spacing and components grow with it */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -25,7 +50,7 @@ html {
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-inter), Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--app-font, var(--font-inter)), Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-feature-settings: "cv11", "ss01", "ss03"; /* Inter: single-storey a, open digits */
   min-height: 100vh;
   line-height: 1.6;
@@ -47,7 +72,7 @@ body {
 
 /* Headings use the display face */
 h1, h2, h3 {
-  font-family: var(--font-display), var(--font-inter), system-ui, sans-serif;
+  font-family: var(--app-font, var(--font-display)), var(--font-inter), system-ui, sans-serif;
   letter-spacing: -0.02em;
 }
 
@@ -57,7 +82,7 @@ button, a, input, select, textarea {
 }
 
 :focus-visible {
-  outline: 2px solid #818cf8;
+  outline: 2px solid rgb(var(--accent-400));
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -187,8 +212,8 @@ html.dark textarea::placeholder {
 html.dark input:focus,
 html.dark select:focus,
 html.dark textarea:focus {
-  border-color: #6366f1 !important;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25) !important;
+  border-color: rgb(var(--accent-500)) !important;
+  box-shadow: 0 0 0 2px rgb(var(--accent-500) / 0.25) !important;
 }
 
 /* High contrast table styling */
@@ -322,7 +347,7 @@ html.light textarea {
 
 html.light input::placeholder,
 html.light textarea::placeholder {
-  color: #94a3b8 !important;
+  color: #64748b !important;
 }
 
 /* Glass panel in Light Mode */
@@ -355,9 +380,62 @@ html.light .bg-emerald-500\/15 {
 html.light .bg-indigo-500\/10,
 html.light .bg-indigo-500\/15,
 html.light .bg-indigo-500\/20 {
-  background-color: #eef2ff !important;
-  border-color: #c7d2fe !important;
-  color: #4338ca !important;
+  background-color: rgb(var(--accent-50)) !important;
+  border-color: rgb(var(--accent-200)) !important;
+  color: rgb(var(--accent-700)) !important;
+}
+
+/* Light shades of the main colour are made for dark backgrounds: darken them on white */
+html.light .text-indigo-300,
+html.light .text-indigo-400 {
+  color: rgb(var(--accent-700)) !important;
+}
+
+html.light .text-teal-300,
+html.light .text-teal-400 {
+  color: rgb(var(--accent2-700)) !important;
+}
+
+/* Same for the status colours: their pale shades look almost white on a light background */
+html.light .text-emerald-200, html.light .text-emerald-300, html.light .text-emerald-400, html.light .text-emerald-300\/90,
+html.light .hover\:text-emerald-300:hover, html.light .group:hover .group-hover\:text-emerald-400 {
+  color: #047857 !important;
+}
+
+html.light .text-amber-200, html.light .text-amber-300, html.light .text-amber-400, html.light .text-amber-300\/90,
+html.light .hover\:text-amber-300:hover, html.light .group:hover .group-hover\:text-amber-400 {
+  color: #b45309 !important;
+}
+
+html.light .text-rose-200, html.light .text-rose-300, html.light .text-rose-400, html.light .text-rose-300\/70,
+html.light .hover\:text-rose-400:hover {
+  color: #be123c !important;
+}
+
+html.light .text-sky-200, html.light .text-sky-300, html.light .text-sky-400,
+html.light .hover\:text-sky-300:hover, html.light .group:hover .group-hover\:text-sky-400 {
+  color: #0369a1 !important;
+}
+
+html.light .text-purple-300, html.light .text-purple-400 {
+  color: #7e22ce !important;
+}
+
+html.light .text-indigo-200, html.light .hover\:text-indigo-200:hover, html.light .hover\:text-indigo-300:hover, html.light .hover\:text-indigo-400:hover {
+  color: rgb(var(--accent-700)) !important;
+}
+
+html.light .text-teal-200, html.light .hover\:text-teal-200:hover, html.light .hover\:text-teal-300:hover, html.light .hover\:text-teal-400:hover {
+  color: rgb(var(--accent2-700)) !important;
+}
+
+/* White text stays white on solid colour (the .text-white rule above is for plain backgrounds).
+   Exact classes only: fields and cards also contain words like "focus:ring-indigo-500". */
+html.light .text-white:is(
+  .bg-indigo-600, .bg-teal-600, .bg-emerald-600, .bg-amber-600, .bg-rose-600, .bg-sky-600, .bg-rose-500,
+  .bg-gradient-to-r, .bg-gradient-to-br
+) {
+  color: #ffffff !important;
 }
 
 html.light .bg-sky-500\/10,

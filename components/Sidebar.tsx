@@ -20,11 +20,14 @@ import {
   Moon,
   MonitorSmartphone,
   Contact,
+  KeyRound,
+  Settings,
 } from "lucide-react";
 import { SessionUser } from "@/types";
 import BrandLogo from "@/components/BrandLogo";
 import { ModalCloseButton, useDismissable, whenModalHistorySettled } from "@/components/ModalShell";
 import { useTheme, ThemePref } from "@/components/useTheme";
+import { useVersionInfo } from "@/components/useVersionInfo";
 
 interface SidebarProps {
   onOpenNewDeployment?: () => void;
@@ -61,7 +64,7 @@ export default function Sidebar({
     }
   };
 
-  const navLinks = [
+  const navLinks: { name: string; href: string; icon: React.ElementType; exact?: boolean; badge?: string; adminOnly?: boolean }[] = [
     {
       name: "Dashboard",
       href: "/",
@@ -83,6 +86,11 @@ export default function Sidebar({
       name: "Employees",
       href: "/employees",
       icon: Contact,
+    },
+    {
+      name: "Access Report",
+      href: "/access",
+      icon: KeyRound,
     },
     {
       name: "Servers & Infra",
@@ -111,8 +119,14 @@ export default function Sidebar({
       href: "/maintenance",
       icon: HardDrive,
       badge: "Ops",
+      adminOnly: true,
     },
-  ];
+    {
+      name: "Settings",
+      href: "/settings",
+      icon: Settings,
+    },
+  ].filter((link) => !link.adminOnly || currentUser?.role === "ADMIN");
 
   const isActive = (href: string, exact = false) => {
     if (exact) return pathname === href;
@@ -253,6 +267,7 @@ export default function Sidebar({
           </div>
         )}
 
+        <VersionLine />
       </div>
     </div>
   );
@@ -288,6 +303,18 @@ function MobileDrawer({ onClose, children }: { onClose: () => void; children: Re
         {children}
       </div>
     </div>
+  );
+}
+
+/** The build version, with a warning when the website and API sites don't match. */
+function VersionLine() {
+  const { website, mismatch } = useVersionInfo();
+  return mismatch ? (
+    <Link href="/settings" className="block text-xs font-semibold text-amber-400 hover:underline">
+      Website and API versions differ. See Settings.
+    </Link>
+  ) : (
+    <div className="text-xs text-slate-500 font-mono text-center">Version {website}</div>
   );
 }
 

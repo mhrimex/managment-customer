@@ -158,6 +158,9 @@ You also need to run it after changing **`NEXT_PUBLIC_*`** settings in `.env`, b
 | What | Where |
 |---|---|
 | Staff accounts, roles and passwords | **Users** page (admin only) |
+| Font size, main colour and font for the whole site | **Settings** page (admin only) |
+| What each role can do | Admin: everything. Support engineer: view, add and edit, including reading saved passwords (recorded in the Audit Trail), but no deleting, backup, restore, reset or site settings |
+| Which build is running | Bottom of the side menu, and **Settings** (warns if the website and API differ) |
 | Solutions catalog | **Solutions** page |
 | Backup / restore / reset data | **Maintenance** page |
 
@@ -214,3 +217,8 @@ The **Maintenance → Export backup** button in the app gives you a JSON snapsho
 | Vault shows "[Decryption Error]" | `ENCRYPTION_SECRET` differs from the one used to save those secrets. Restore the original value |
 | Changes to `NEXT_PUBLIC_*` don't show | Re-run `deploy.ps1` (rebuild needed) |
 | App doesn't start after reboot | Look at `logs\server.log`. The app waits up to 5 minutes for SQL Server before starting |
+| A solution is missing from an employee's access list | The list only shows deployments on the account's server. Open "Not on this server" in the form, then set that deployment's **Hosting Server** |
+| The access form lists only company names, with no solutions | The server still runs an old build (the label reads "Companies this account can open"). Replace `bin` in both IIS sites |
+| "Could not load the deployments" in the access form | The `api` and `application` sites run different versions. Replace `bin` in both |
+| "Can't delete ..." | The item is still in use. The message lists each place: remove those first, then delete it. A deployment must also have the status DECOMMISSIONED |
+| "Can't change the client, solution or server ..." | Employees have access to that deployment. Untick it on each employee's page first |

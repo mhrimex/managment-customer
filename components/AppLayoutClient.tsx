@@ -10,6 +10,7 @@ import ClientModal from "@/components/ClientModal";
 import ServerModal from "@/components/ServerModal";
 import { FeedbackProvider } from "@/components/Feedback";
 import { ClientDeployment, Client, Server } from "@/types";
+import { applyAppearance, fetchAppearance, rememberAppearance } from "@/lib/appearance";
 
 interface AppContextType {
   openSearch: () => void;
@@ -40,6 +41,16 @@ export default function AppLayoutClient({
 }) {
   const pathname = usePathname();
   const isAuthPage = pathname === "/login";
+
+  // Follow the saved look. The script in app/layout.tsx already applied the last known one
+  // before the first paint; this picks up any change an admin has made since.
+  useEffect(() => {
+    fetchAppearance().then((look) => {
+      if (!look) return;
+      applyAppearance(look);
+      rememberAppearance(look);
+    });
+  }, []);
 
   // If the API rejects the session (expired, signed out elsewhere, API restarted with a
   // new key), clear the cookie and go to the login page instead of showing empty pages.

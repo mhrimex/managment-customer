@@ -665,8 +665,8 @@ export async function updateServer(id: string, data: Partial<Server>): Promise<S
 }
 
 /**
- * Delete a server. Deployments hosted on it are kept and become
- * "no server assigned" (server_id = NULL). Returns how many were unassigned.
+ * Delete a server. The DELETE route refuses first while deployments or accounts use it
+ * (lib/usage.ts); the statements below only tidy up anything added in the meantime.
  */
 export async function deleteServer(id: string): Promise<{ deleted: boolean; unassigned: number }> {
   if (await dbAvailable()) {

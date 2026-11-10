@@ -28,6 +28,8 @@ const API_HIDDEN = path.join(ROOT, ".api-build-hidden");
 const step = (m) => console.log(`\n==> ${m}`);
 const fail = (m) => { console.error(`\nERROR: ${m}`); process.exit(1); };
 const crlf = (s) => s.replace(/\r?\n/g, "\r\n");
+// Shown in the app: a date and time, e.g. 2026.11.06-1432 (UTC). Same for the API and the website.
+const APP_VERSION = new Date().toISOString().slice(0, 16).replace(/-/g, ".").replace("T", "-").replace(":", "");
 const writeText = (file, text) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, crlf(text)); };
 const readPkg = (...p) => fs.readFileSync(path.join(PKG, ...p), "utf8");
 
@@ -41,11 +43,17 @@ if (fs.existsSync(API_HIDDEN) && !fs.existsSync(API_SRC)) {
 if (fs.existsSync(API_HIDDEN)) fail(`${API_HIDDEN} exists next to app/api - check and remove it manually.`);
 
 function nextBuild(target) {
-  fs.rmSync(path.join(ROOT, `.next-${target}`), { recursive: true, force: true });
-  const r = spawnSync("npx", ["next", "build"], {
-    cwd: ROOT, stdio: "inherit", shell: true,
-    env: { ...process.env, BUILD_TARGET: target, NODE_ENV: "production" },
-  });
+  // The build downloads the fonts from Google, which now and then fails for a moment: try again
+  let r;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    fs.rmSync(path.join(ROOT, `.next-${target}`), { recursive: true, force: true });
+    r = spawnSync("npx", ["next", "build"], {
+      cwd: ROOT, stdio: "inherit", shell: true,
+      env: { ...process.env, BUILD_TARGET: target, NODE_ENV: "production", APP_VERSION: APP_VERSION },
+    });
+    if (r.status === 0) break;
+    if (attempt < 3) console.log(`  ${target} build failed, trying again (${attempt + 1} of 3)`);
+  }
   // throw (not process.exit) so the caller can restore app/api
   if (r.status !== 0) throw new Error(`${target} build failed`);
   if (!fs.existsSync(path.join(ROOT, `.next-${target}`, "standalone", "server.js"))) {
@@ -134,7 +142,7 @@ if (fs.existsSync(oldSettings)) {
 
 let version = "unknown";
 try { version = execSync("git rev-parse --short HEAD", { cwd: ROOT }).toString().trim(); } catch {}
-const versionText = `Build: ${version}\nDate:  ${new Date().toISOString()}\nNode:  ${process.version}\n`;
+const versionText = `Version: ${APP_VERSION}\nCommit:  ${version}\nDate:    ${new Date().toISOString()}\nNode:    ${process.version}\n`;
 
 // database\ ------------------------------------------------------------------
 const dbDir = path.join(OUT, "database");

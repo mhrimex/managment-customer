@@ -63,6 +63,10 @@ export async function middleware(request: NextRequest) {
   if (isPublicAsset(pathname) || pathname.startsWith("/api/auth/login")) {
     return NextResponse.next();
   }
+  // The site's look is needed on the login page too; saving it still requires an admin.
+  if (pathname === "/api/appearance" && request.method === "GET") {
+    return NextResponse.next();
+  }
 
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   // Verify the HMAC signature and expiry — not just that a cookie exists

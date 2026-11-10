@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ModalShell, { ModalCloseButton } from "@/components/ModalShell";
 import { Save, AlertCircle } from "lucide-react";
 import {
@@ -48,6 +48,12 @@ export default function DeploymentModal({
   const [renewalDate, setRenewalDate] = useState("");
   const [supportContractStatus, setSupportContractStatus] = useState<SupportContractStatus>("ACTIVE");
   const [notes, setNotes] = useState("");
+
+  // The Save button is at the bottom of a long form: bring a refusal into view
+  const errorBox = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) errorBox.current?.scrollIntoView({ block: "nearest" });
+  }, [error]);
 
   // Load select options
   useEffect(() => {
@@ -173,7 +179,7 @@ export default function DeploymentModal({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="overflow-y-auto overscroll-contain min-h-0 flex-1 px-5 sm:px-7 pt-5 sm:pt-6 space-y-5">
           {error && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+            <div ref={errorBox} className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
               <AlertCircle size={15} className="shrink-0" />
               <span>{error}</span>
             </div>
@@ -256,6 +262,11 @@ export default function DeploymentModal({
                   </option>
                 ))}
               </select>
+              {!serverId && (
+                <p className="text-xs text-amber-400 mt-1.5">
+                  With no server, employees can&apos;t be given access to this deployment.
+                </p>
+              )}
             </div>
 
             <div>

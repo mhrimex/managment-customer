@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { exportSystemBackup, restoreSystemBackup } from "@/lib/db";
 import { getAuditLogs, resetAuditLogs, logAuditEvent } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
     const user = await getCurrentUser();
     const backup = await exportSystemBackup();
     const auditLogs = await getAuditLogs({ limit: 500 });
@@ -40,6 +43,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
     const user = await getCurrentUser();
     const body = await request.json();
     const backupData = body.data || body;

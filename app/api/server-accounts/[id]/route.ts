@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateAccount, deleteAccount } from "@/lib/employees";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
-import { apiError } from "@/lib/api-errors";
+import { apiError, refuseDelete } from "@/lib/api-errors";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -33,6 +33,8 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params;
     const user = await getCurrentUser();
+    const refused = await refuseDelete("account", id);
+    if (refused) return refused;
     const account = await deleteAccount(id);
     if (!account) return NextResponse.json({ success: false, error: "Account not found" }, { status: 404 });
     await logAuditEvent({

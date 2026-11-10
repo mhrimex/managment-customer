@@ -19,13 +19,15 @@ import { Solution } from "@/types";
 import { SkeletonCards } from "@/components/Skeleton";
 import { useApp } from "@/components/AppLayoutClient";
 import { useFeedback } from "@/components/Feedback";
+import { useSafeDelete } from "@/components/useSafeDelete";
 import SolutionModal, { CATEGORY_OPTIONS } from "@/components/SolutionModal";
 
 const categoryLabel = (c: string) => CATEGORY_OPTIONS.find((o) => o.value === c)?.label || c;
 
 export default function SolutionsPage() {
   const { refreshTrigger, triggerRefresh } = useApp();
-  const { toast, confirm } = useFeedback();
+  const { toast } = useFeedback();
+  const safeDelete = useSafeDelete();
   const [solutions, setSolutions] = useState<Solution[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -58,27 +60,17 @@ export default function SolutionsPage() {
   };
 
   const handleDelete = async (sol: Solution) => {
-    if ((sol.deployments_count || 0) > 0) {
-      toast(`${sol.name} is used by ${sol.deployments_count} deployment(s). Remove those first.`, "error");
-      return;
-    }
-    const ok = await confirm({
+    const deleted = await safeDelete({
+      kind: "solution",
+      id: sol.id,
       title: `Delete ${sol.name}?`,
       message: "The solution will be removed from the catalog.",
       confirmLabel: "Delete solution",
-      danger: true,
     });
-    if (!ok) return;
-    try {
-      const res = await fetch(`/api/solutions/${sol.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "Failed to delete solution");
-      toast(`${sol.name} was deleted.`);
-      fetchSolutions();
-      triggerRefresh();
-    } catch (err: any) {
-      toast(err.message || "Failed to delete solution", "error");
-    }
+    if (!deleted) return;
+    toast(`${sol.name} was deleted.`);
+    fetchSolutions();
+    triggerRefresh();
   };
 
   const getCategoryIcon = (category: string) => {

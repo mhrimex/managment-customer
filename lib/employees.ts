@@ -8,7 +8,7 @@
  * Account passwords are encrypted like the vault and only returned by revealAccountPassword().
  * These features need SQL Server (no in-memory fallback).
  */
-import { AccountDeployment, Employee, ServerAccount } from "@/types";
+import { AccessReportRow, AccountDeployment, Employee, OtherDeployment, ServerAccount } from "@/types";
 import { dbAvailable, execute, inTransaction, query } from "@/lib/db";
 import { encrypt, decrypt } from "@/lib/crypto";
 
@@ -215,7 +215,7 @@ export async function updateEmployee(id: string, body: any): Promise<Employee | 
   return getEmployee(id);
 }
 
-/** Deletes the employee and all their server accounts. */
+/** Deletes the employee. The DELETE route refuses first while they still have server accounts. */
 export async function deleteEmployee(id: string): Promise<{ deleted: boolean; name?: string; accounts: number }> {
   await requireDb();
   const rows = await query<{ full_name: string; n: number }>(
@@ -246,6 +246,22 @@ export async function deploymentsOnServer(serverId: string): Promise<AccountDepl
   );
 }
 
+/** Every other deployment, so the form can say why it can't be selected on this server. */
+export async function deploymentsNotOnServer(serverId: string): Promise<OtherDeployment[]> {
+  await requireDb();
+  return query<OtherDeployment>(
+    `SELECT d.id, c.id AS client_id, c.company_name, s.name AS solution_name,
+            d.database_name, d.environment, d.instance_url, sv.server_name
+       FROM client_deployments d
+       JOIN clients c   ON c.id = d.client_id
+       JOIN solutions s ON s.id = d.solution_id
+       LEFT JOIN servers sv ON sv.id = d.server_id
+      WHERE d.server_id IS NULL OR d.server_id <> @server_id
+      ORDER BY c.company_name, s.name, d.database_name`,
+    { server_id: serverId }
+  );
+}
+
 async function checkDeployments(serverId: string, deploymentIds: unknown): Promise<string[]> {
   if (deploymentIds === undefined) return [];
   if (!Array.isArray(deploymentIds)) throw new RuleError("deployment_ids must be a list");
@@ -254,6 +270,75 @@ async function checkDeployments(serverId: string, deploymentIds: unknown): Promi
   const allowed = new Set((await deploymentsOnServer(serverId)).map((d) => d.id.toLowerCase()));
   if (wanted.some((id) => !allowed.has(id))) throw new RuleError("Some selected deployments are not on this server");
   return wanted;
+}
+
+/**
+ * Set who can open a deployment (the company page's "Manage access"): only accounts on the
+ * deployment's server. Returns the usernames added and removed, or null if it doesn't exist.
+ */
+export async function setDeploymentAccess(deploymentId: string, accountIds: unknown) {
+  await requireDb();
+  if (!Array.isArray(accountIds)) throw new RuleError("account_ids must be a list");
+  const dep = (await query<{ server_id: string | null; company_name: string; solution_name: string }>(
+    `SELECT d.server_id, c.company_name, s.name AS solution_name
+       FROM client_deployments d
+       JOIN clients c   ON c.id = d.client_id
+       JOIN solutions s ON s.id = d.solution_id
+      WHERE d.id = @id`,
+    { id: deploymentId }
+  ))[0];
+  if (!dep) return null;
+  if (!dep.server_id) throw new RuleError("Set this deployment's Hosting Server first");
+
+  const onServer = new Map(
+    (await query<{ id: string; username: string }>("SELECT id, username FROM server_accounts WHERE server_id = @server_id", { server_id: dep.server_id }))
+      .map((a) => [a.id.toLowerCase(), a.username])
+  );
+  const wanted = new Set(accountIds.map((x) => String(x).toLowerCase()));
+  if ([...wanted].some((id) => !onServer.has(id))) throw new RuleError("Some selected accounts are not on this deployment's server");
+
+  const current = new Set(
+    (await query<{ account_id: string }>("SELECT account_id FROM server_account_deployments WHERE deployment_id = @id", { id: deploymentId }))
+      .map((r) => r.account_id.toLowerCase())
+  );
+  const add = [...wanted].filter((id) => !current.has(id));
+  const remove = [...current].filter((id) => !wanted.has(id));
+
+  await inTransaction(async (run) => {
+    for (const account_id of remove) {
+      await run("DELETE FROM server_account_deployments WHERE account_id = @account_id AND deployment_id = @deployment_id", { account_id, deployment_id: deploymentId });
+    }
+    for (const account_id of add) {
+      await run("INSERT INTO server_account_deployments (account_id, deployment_id) VALUES (@account_id, @deployment_id)", { account_id, deployment_id: deploymentId });
+    }
+  });
+  const usernames = (ids: string[]) => ids.map((id) => onServer.get(id) || id);
+  return { name: `${dep.company_name} ${dep.solution_name}`, added: usernames(add), removed: usernames(remove) };
+}
+
+/** Every employee with every account and what it can open, one row each. Never includes passwords. */
+export async function accessReport(): Promise<AccessReportRow[]> {
+  await requireDb();
+  const rows = await query<any>(
+    `SELECT e.id AS employee_id, e.full_name AS employee_name, e.job_title, e.is_active AS employee_active,
+            a.id AS account_id, a.username, a.is_active AS account_active,
+            sv.server_name, sv.ip_address AS server_ip,
+            d.id AS deployment_id, c.id AS client_id, c.company_name, s.name AS solution_name,
+            d.database_name, d.environment, d.deployment_status
+       FROM employees e
+       LEFT JOIN server_accounts a ON a.employee_id = e.id
+       LEFT JOIN servers sv ON sv.id = a.server_id
+       LEFT JOIN server_account_deployments x ON x.account_id = a.id
+       LEFT JOIN client_deployments d ON d.id = x.deployment_id
+       LEFT JOIN clients c   ON c.id = d.client_id
+       LEFT JOIN solutions s ON s.id = d.solution_id
+      ORDER BY e.full_name, sv.server_name, a.username, c.company_name, s.name`
+  );
+  return rows.map((r) => ({
+    ...r,
+    employee_active: bool(r.employee_active),
+    account_active: r.account_id ? bool(r.account_active) : null,
+  }));
 }
 
 function duplicateUsername(err: any) {

@@ -248,6 +248,31 @@ export interface AccountDeployment {
   instance_url?: string | null;
 }
 
+/** One line of the access report. Account and deployment fields are null when there are none. */
+export interface AccessReportRow {
+  employee_id: string;
+  employee_name: string;
+  job_title: string | null;
+  employee_active: boolean;
+  account_id: string | null;
+  username: string | null;
+  account_active: boolean | null;
+  server_name: string | null;
+  server_ip: string | null;
+  deployment_id: string | null;
+  client_id: string | null;
+  company_name: string | null;
+  solution_name: string | null;
+  database_name: string | null;
+  environment: string | null;
+  deployment_status: string | null;
+}
+
+/** A deployment an account can't be given access to, because it isn't on the account's server. */
+export interface OtherDeployment extends AccountDeployment {
+  server_name: string | null;
+}
+
 /** One login on one server (e.g. mohamad1 on Rimex) and the deployments it can open there. */
 export interface ServerAccount {
   id: string;

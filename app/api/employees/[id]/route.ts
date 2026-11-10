@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEmployee, updateEmployee, deleteEmployee } from "@/lib/employees";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
-import { apiError } from "@/lib/api-errors";
+import { apiError, refuseDelete } from "@/lib/api-errors";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -40,6 +40,8 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params;
     const user = await getCurrentUser();
+    const refused = await refuseDelete("employee", id);
+    if (refused) return refused;
     const result = await deleteEmployee(id);
     if (!result.deleted) return NextResponse.json({ success: false, error: "Employee not found" }, { status: 404 });
     await logAuditEvent({
@@ -48,9 +50,9 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
       action: "DELETE_EMPLOYEE",
       resource_type: "EMPLOYEE",
       resource_id: id,
-      details: `Deleted employee "${result.name}" and ${result.accounts} server account(s)`,
+      details: `Deleted employee "${result.name}"`,
     }).catch(() => {});
-    return NextResponse.json({ success: true, deleted_accounts: result.accounts });
+    return NextResponse.json({ success: true });
   } catch (err) {
     return apiError(err, "DELETE /api/employees/[id]", "Failed to delete employee");
   }

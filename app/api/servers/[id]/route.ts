@@ -3,6 +3,7 @@ import { updateServer, deleteServer } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { validateServerBody } from "@/lib/server-validation";
+import { refuseDelete } from "@/lib/api-errors";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -40,6 +41,8 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params;
     const user = await getCurrentUser();
+    const refused = await refuseDelete("server", id);
+    if (refused) return refused;
     const result = await deleteServer(id);
     if (!result.deleted) {
       return NextResponse.json({ success: false, error: "Server not found" }, { status: 404 });
@@ -51,10 +54,10 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
       action: "DELETE_SERVER",
       resource_type: "SERVER",
       resource_id: id,
-      details: `Deleted server ${id}` + (result.unassigned ? `; ${result.unassigned} deployment(s) now have no server` : ""),
+      details: `Deleted server ${id}`,
     }).catch(() => {});
 
-    return NextResponse.json({ success: true, message: "Server deleted", unassigned: result.unassigned });
+    return NextResponse.json({ success: true, message: "Server deleted" });
   } catch (error) {
     console.error("DELETE /api/servers/[id] error:", error);
     return NextResponse.json({ success: false, error: "Failed to delete server" }, { status: 500 });

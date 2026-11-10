@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Employee, ServerAccount } from "@/types";
 import { useFeedback } from "@/components/Feedback";
+import { useSafeDelete } from "@/components/useSafeDelete";
 import { Skeleton, SkeletonCards } from "@/components/Skeleton";
 import CopyButton from "@/components/CopyButton";
 import EmployeeModal from "@/components/EmployeeModal";
@@ -18,7 +19,8 @@ import { initials } from "@/lib/utils";
 export default function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { toast, confirm } = useFeedback();
+  const { toast } = useFeedback();
+  const safeDelete = useSafeDelete();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,32 +89,27 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
   const deleteEmployee = async () => {
     if (!employee) return;
-    const n = employee.accounts?.length || 0;
-    const ok = await confirm({
+    const deleted = await safeDelete({
+      kind: "employee",
+      id: employee.id,
       title: `Delete ${employee.full_name}?`,
-      message: n ? `Their ${n} server account(s) will be deleted too.` : "The employee will be removed.",
+      message: "The employee will be removed.",
       confirmLabel: "Delete employee",
-      danger: true,
     });
-    if (!ok) return;
-    const r = await fetch(`/api/employees/${employee.id}`, { method: "DELETE" });
-    const d = await r.json();
-    if (!r.ok || !d.success) return toast(d.error || "Failed to delete employee", "error");
+    if (!deleted) return;
     toast(`${employee.full_name} was deleted.`);
     router.push("/employees");
   };
 
   const deleteAccount = async (acc: ServerAccount) => {
-    const ok = await confirm({
+    const deleted = await safeDelete({
+      kind: "account",
+      id: acc.id,
       title: `Delete account ${acc.username}?`,
-      message: `The login "${acc.username}" on ${acc.server_name} and its access will be removed from this list.`,
+      message: `The login "${acc.username}" on ${acc.server_name} will be removed from this list.`,
       confirmLabel: "Delete account",
-      danger: true,
     });
-    if (!ok) return;
-    const r = await fetch(`/api/server-accounts/${acc.id}`, { method: "DELETE" });
-    const d = await r.json();
-    if (!r.ok || !d.success) return toast(d.error || "Failed to delete account", "error");
+    if (!deleted) return;
     toast(`Account ${acc.username} was deleted.`);
     load();
   };

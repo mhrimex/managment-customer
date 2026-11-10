@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { addCredential, deleteCredential, revealCredential } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
+import { requireAdmin } from "@/lib/permissions";
 
 /**
  * GET /api/credentials?id=<credential id>&purpose=reveal|copy
@@ -76,6 +77,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 

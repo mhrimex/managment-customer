@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientById, updateClient, deleteClient } from "@/lib/db";
 import { validateLogo } from "@/lib/validation";
+import { refuseDelete } from "@/lib/api-errors";
 
 export async function GET(
   request: NextRequest,
@@ -69,6 +70,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const refused = await refuseDelete("company", id);
+    if (refused) return refused;
     const deleted = await deleteClient(id);
 
     if (!deleted) {
@@ -80,7 +83,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: "Client and associated deployments deleted successfully",
+      message: "Client deleted successfully",
     });
   } catch (error) {
     console.error("DELETE /api/clients/[id] error:", error);

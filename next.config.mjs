@@ -17,7 +17,11 @@ const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: __dirname,
   devIndicators: false, // Disables the Next.js "N" indicator badge at the bottom
-  env: { APP_TARGET: target || "all" },
+  env: {
+    APP_TARGET: target || "all",
+    // package.mjs passes one version to both builds, so the two IIS sites can be compared
+    APP_VERSION: process.env.APP_VERSION || `local-${new Date().toISOString().slice(0, 10)}`,
+  },
   ...(target
     ? {
         output: "standalone",

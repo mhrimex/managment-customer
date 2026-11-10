@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { clearOrResetSystemData } from "@/lib/db";
 import { resetAuditLogs, logAuditEvent } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/permissions";
 
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireAdmin();
+    if (denied) return denied;
     const user = await getCurrentUser();
     const body = await request.json();
     const { mode, confirmation } = body;

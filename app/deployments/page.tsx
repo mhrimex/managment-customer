@@ -41,6 +41,7 @@ import {
 } from "@/types";
 import { useApp } from "@/components/AppLayoutClient";
 import { useFeedback } from "@/components/Feedback";
+import { useSafeDelete } from "@/components/useSafeDelete";
 import { Skeleton, SkeletonRows } from "@/components/Skeleton";
 import StatusBadge, { EnvironmentBadge } from "@/components/StatusBadge";
 import RenewalBadge from "@/components/RenewalBadge";
@@ -52,7 +53,8 @@ function DeploymentsTableContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { openNewDeployment, openEditDeployment, refreshTrigger, triggerRefresh } = useApp();
-  const { toast, confirm } = useFeedback();
+  const { toast } = useFeedback();
+  const safeDelete = useSafeDelete();
 
   // Load filter params from URL search parameters
   const initialSearch = searchParams.get("search") || "";
@@ -176,26 +178,17 @@ function DeploymentsTableContent() {
 
   // Delete Deployment
   const handleDelete = async (id: string, clientName?: string) => {
-    const ok = await confirm({
+    const deleted = await safeDelete({
+      kind: "deployment",
+      id,
       title: "Delete this deployment?",
-      message: `The deployment for ${clientName || "the client"} and its vault credentials will be removed permanently. Employees lose their access to it; their accounts stay.`,
+      message: `The deployment for ${clientName || "the client"} will be removed permanently.`,
       confirmLabel: "Delete deployment",
-      danger: true,
     });
-    if (!ok) return;
-    try {
-      const res = await fetch(`/api/deployments/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (data.success) {
-        toast("Deployment deleted.");
-        triggerRefresh();
-        fetchDeployments();
-      } else {
-        toast(data.error || "Failed to delete", "error");
-      }
-    } catch {
-      toast("Error deleting deployment", "error");
-    }
+    if (!deleted) return;
+    toast("Deployment deleted.");
+    triggerRefresh();
+    fetchDeployments();
   };
 
   // =====================================================================
